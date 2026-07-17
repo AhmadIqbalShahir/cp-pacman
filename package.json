@@ -1,0 +1,15 @@
+{
+  "name": "cp-pacman",
+  "version": "1.0.0",
+  "description": "CP-Pacman - Messe Edition, a browser-based Pacman clone for a university trade-fair booth",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}

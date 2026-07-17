@@ -1,0 +1,406 @@
+================================================================================
+CP-PACMAN -- MESSE EDITION
+IMPLEMENTATION SUMMARY + ORIGINAL TECH SPEC
+================================================================================
+
+
+PART 1: WHAT HAS BEEN DONE
+================================================================================
+
+STATUS: Complete and tested end-to-end. The game runs locally via
+`npm install && node server.js` or by double-clicking the platform installer
+script, and was verified in a live browser session (movement, walls, pellet
+scoring, staggered enemy release, all 4 enemy sprites/AI, power-pellet /
+frightened / eaten states, life-loss + full reset, game over, name entry
+validation, leaderboard POST/GET, disk persistence, idle timeout logic, and
+a fresh new-game restart).
+
+FILES DELIVERED
+--------------------------------------------------------------------------------
+server.js                          Express server: static file hosting +
+                                    leaderboard REST API, atomic disk writes,
+                                    bound to 127.0.0.1 only.
+package.json / package-lock.json   Single dependency: Express.
+install_windows.bat                Windows installer/launcher, with Chrome
+                                    path detection and a default-browser
+                                    fallback if Chrome isn't found.
+install_mac.command                Mac installer/launcher (chmod +x already
+                                    applied), Chrome kiosk mode with fallback.
+README.md                          Setup, running, controls, leaderboard
+                                    reset instructions, troubleshooting.
+data/leaderboard.json              Persistent score store, currently reset
+                                    to { "entries": [] } after testing.
+
+public/index.html                  Page shell: canvas + hidden name-entry
+                                    input overlay.
+public/style.css                   Dark theme, pixel font face, canvas
+                                    scaling/centering, name-entry input style.
+public/maps.js                     3 maze variants as 28x31 char grids, each
+                                    with a name, wall color theme, and tunnel
+                                    row. Procedurally generated via a maze
+                                    algorithm and validated with a full
+                                    connectivity (BFS) check before being
+                                    baked in as static data -- every open
+                                    tile on every board is reachable.
+public/entities.js                 Procedural pixel-art sprite generation
+                                    (player + 4 enemies + pellets), drawn
+                                    once onto small offscreen canvases and
+                                    cached, then blitted at render time.
+public/game.js                     Full game engine (see below).
+public/assets/ui/logo.webp         User-supplied TU Braunschweig logo,
+                                    copied into place.
+public/assets/fonts/PressStart2P.woff2   Bundled pixel font (SIL Open Font
+                                    License), fetched once and stored locally
+                                    so the booth machine needs no internet
+                                    connection at runtime.
+
+ENGINE FEATURES (public/game.js)
+--------------------------------------------------------------------------------
+- Tile-based movement with sub-tile interpolation; direction changes only
+  resolve at tile centers; player input is buffered so a turn queued early
+  applies as soon as it's legal.
+- Tunnel wraparound on the designated tunnel row of each map.
+- CP pellets (10 pts) and power pellets (50 pts), power pellet triggers an
+  8s frightened window that shortens by 0.5s per pellet eaten (floor 3s).
+- Chain-eating score during frightened windows: 200/400/800/1600, resetting
+  each new power pellet.
+- Board-clear bonus (+1000), then advances through the 3 map variants in
+  a loop, with enemy speed scaling up (+2.5%/board, capped at 110% of
+  player speed).
+- 3 lives, collision handling: losing a life resets player + all enemies to
+  their start positions after a short pause; 0 lives triggers game over.
+- All 4 enemy AI archetypes implemented as per the spec's strategy-pattern
+  approach (one getTargetTile() per archetype, shared movement/pathing):
+    * Prof 1 -- direct chase (greedy tile-distance toward the player)
+    * Prof 2 -- predictive ambush (4 tiles ahead of player's facing
+      direction, falls back to direct chase if that tile is a wall)
+    * Pruefung 1 -- semi-random (50% greedy / 50% random open direction)
+    * Pruefung 2 -- shy retreat (chases beyond 8 tiles, retreats to its
+      home corner within 8 tiles)
+  Enemies leave the ghost house on a staggered timer (0s / 3s / 6s / 9s).
+- Frightened state: all enemies flip to a shared blue/scared sprite, reverse
+  direction on trigger, then move semi-randomly away from the player; last
+  2 seconds flash as a warning. Eaten enemies switch to an eyes-only sprite,
+  move home at 2x speed, and respawn as normal on arrival.
+- Title screen (logo + live top-10 leaderboard, blinking prompt), in-canvas
+  HUD (score / board name / lives), game-over name entry (alphanumeric,
+  max 12 chars, filtered client- and server-side), post-submit leaderboard
+  screen, and a 30s idle timeout that auto-returns to the title screen.
+
+KNOWN DEVIATION FROM THE ORIGINAL SPEC
+--------------------------------------------------------------------------------
+Section 6.4 of the spec calls for individual PNG sprite frames named
+`{entity}_{direction}_{frame}.png`. No image-generation tool was available
+in this environment, so sprites are instead drawn procedurally in JS onto
+small offscreen canvases (16x16 native) and cached -- functionally
+equivalent (distinct, readable, per-archetype silhouettes; frightened/eaten
+states; walk/animation frames) but there are no actual PNG files on disk for
+these entities. The only real image asset in the project is the
+user-supplied logo.webp. Wall tilesets are likewise rendered as solid,
+per-board accent colors rather than textured PNG tiles.
+
+Everything else in the spec was implemented as written, including the
+maze layout format, the leaderboard API contract, atomic file writes, the
+installer script behavior, and the README content requirements.
+
+
+PART 2: ORIGINAL TECH SPEC (as supplied, verbatim)
+================================================================================
+
+# CP-Pacman — Messe Edition — Implementation Spec
+
+Target audience for this document: Claude Code, building from scratch. Everything needed to build, run, and package the game is below. No external design decisions should be required beyond what's specified here.
+
+---
+
+## 1. Project Summary
+
+Browser-based Pacman clone for a university trade-fair booth (Messe). Player is a student navigating a campus-building maze, collecting CP (credit point) pellets, avoiding Profs and Prüfungen (the four enemies). Runs locally on a booth laptop via a Node.js server, launched by a double-click installer script (Windows `.bat`, Mac `.command`). Leaderboard persists to disk across the entire event, survives browser restarts.
+
+---
+
+## 2. Tech Stack
+
+- Node.js + Express: static file server + leaderboard REST API.
+- Vanilla JS + HTML5 Canvas for the game itself. No frontend framework, no build step, no bundler.
+- No database. Leaderboard is a JSON file on disk.
+- No external network calls at runtime (booth may have no internet). All assets local.
+
+---
+
+## 3. Project Structure
+
+cp-pacman/
+  server.js
+  package.json
+  README.md
+  install_windows.bat
+  install_mac.command
+  public/
+    index.html
+    style.css
+    game.js
+    maps.js
+    entities.js
+    assets/
+      sprites/
+        player_walk_up_0.png ... (see 6.4 naming convention)
+        prof1_*.png
+        prof2_*.png
+        pruefung1_*.png
+        pruefung2_*.png
+        pellet_cp.png
+        pellet_power.png
+      tilesets/
+        pk47_walls.png
+        forumsplatz_walls.png
+        altgebaeude_walls.png
+      ui/
+        heart_life.png
+        logo.png
+  data/
+    leaderboard.json
+
+---
+
+## 4. Core Game Mechanics
+
+### 4.1 Grid and Movement
+
+- Maze is a tile grid, 28 columns x 31 rows (classic Pacman proportions, adjust per map if needed, see section 7).
+- Tile size: 16px at native resolution, rendered scaled 2x or 3x to fill canvas (canvas resolution target: 896x672 at 2x, or match a fixed 960x720 window).
+- Movement is tile-based with smooth interpolation between tiles (not instant tile-snap), same feel as original Pacman: player and enemies move continuously, direction changes only permitted at tile centers.
+- Player controlled by arrow keys and WASD. Input buffered: if player presses a direction before reaching the next tile center, apply it as soon as the tile center is reached if that direction isn't blocked.
+- Tunnel wraparound: if the map has a horizontal edge corridor, exiting one side re-enters on the opposite side (classic Pacman tunnel). Optional per map, see section 7.
+
+### 4.2 Scoring
+
+- CP pellet (small): 10 points. One per open tile not otherwise occupied by a wall or power pellet.
+- Power pellet (Freiversuch, large pulsing): 50 points. 2-4 per board, placed in corners.
+- Eating a frightened enemy during power pellet window: 200/400/800/1600 points, doubling per consecutive enemy eaten within the same power pellet window, resets next power pellet.
+- Board cleared (all CP + power pellets collected): bonus 1000 points, advance to next board variant (section 7), or loop same board with increased enemy speed if only one variant is in rotation for that session.
+
+### 4.3 Lives and Game Over
+
+- Player starts with 3 lives.
+- Collision with a non-frightened enemy: lose 1 life, player and all enemies reset to start positions, 2 second pause before resuming.
+- 0 lives: game over. Trigger leaderboard name entry screen (section 8).
+
+### 4.4 Power Pellet / Frightened State
+
+- Duration: 8 seconds, decreasing by 0.5s each time a power pellet is collected in the same playthrough (min 3 seconds), to keep pace up on later boards.
+- During frightened state: all 4 enemies switch to frightened sprite (blue, section 6.3), reverse current direction immediately, then move semi-randomly avoiding the player rather than chasing.
+- Last 2 seconds of frightened state: enemies flash between frightened and normal sprite (visual warning), still eatable until state ends.
+- Eaten enemy: sprite becomes "eyes only" (small icon), moves at increased speed directly back to its home base (center of map), then respawns as a normal enemy.
+
+---
+
+## 5. Enemy AI — Profs and Prüfungen
+
+Four enemies, one of each behavior archetype, mirroring the original Pacman ghost AI split (well-tested, should be implemented faithfully rather than reinvented):
+
+| Enemy | Visual | Behavior name | AI rule |
+|---|---|---|---|
+| Prof 1 (Rot) | Red blazer sprite | Direct chase | Targets player's current tile directly, shortest path via BFS or a greedy tile-distance heuristic at each intersection. |
+| Prof 2 (Ambush) | Different blazer color, suggest dark green or navy | Predictive ambush | Targets a tile 4 tiles ahead of player's current direction of travel. If that tile is a wall, falls back to direct chase for that tick. |
+| Prüfung 1 (Klausur) | Exam paper/clipboard sprite with small legs | Semi-random pursuit | 50% chance per intersection to move toward player (greedy), 50% chance to pick a random open direction. |
+| Prüfung 2 (Klausur, scheu) | Second exam paper sprite, different trim color | Shy retreat | Chases player greedily while distance > 8 tiles. When distance <= 8 tiles, targets its own home-base corner instead (retreats). Produces a "backs off when close" feel. |
+
+Implementation notes:
+- All 4 enemies share one movement/pathing function, parameterized by a `getTargetTile(enemy, playerState)` callback per archetype. Strategy pattern, one function per row above.
+- Enemies leave home base on a staggered timer at game/board start (e.g. Prof 1 at 0s, Prof 2 at 3s, Prüfung 1 at 6s, Prüfung 2 at 9s), not all four at once, so the player gets a fair start.
+- Enemy speed: baseline slightly slower than player (e.g. player 100%, enemies 90%), speed increases 2-3% per board cleared, capped at 110% to keep the game winnable.
+
+---
+
+## 6. Visual Style
+
+### 6.1 Palette
+
+16-bit SNES-era style: richer than NES 8-bit but still a constrained palette, roughly 12-16 colors per sprite including outline. Base maze palette: dark blue-grey walls (#2a2f4a range), black corridor background, off-white pellets. TU Braunschweig CI colors used as accent trim on UI chrome (HUD bar, borders) and on enemy blazer colors, not on the maze walls themselves (keeps walls readable against varied enemy colors).
+
+### 6.2 Player Sprite
+
+Pixel-art student character: backpack, simple hoodie or jacket, no identifiable face detail (generic, not a caricature of a specific person). 4-directional walk cycle (up/down/left/right), 2-3 frames each for a walk animation, matching classic Pacman's chomp cadence adapted to a walking human sprite (e.g. arm swing, or keep a small bite-frame for a CP-eating visual gag).
+
+### 6.3 Enemy Sprites
+
+- Normal state: per table in section 5, distinct silhouette and color per enemy so they're readable at a glance from a few meters at a booth (large canvas, high contrast).
+- Frightened state: uniform blue-purple palette swap for all 4 enemies (classic convention), simple scared expression, same silhouette.
+- Eaten state: small eyes-only sprite, no body.
+
+### 6.4 Sprite Sheet / File Naming Convention
+
+Each animated entity: separate PNG per frame, named `{entity}_{direction}_{frame}.png`, e.g. `player_up_0.png`, `player_up_1.png`, `prof1_left_0.png`. Frame size 16x16px native. Fixed naming convention so `entities.js` can load frames programmatically via string interpolation rather than a hardcoded sprite atlas.
+
+### 6.5 CP Pellets and Power Pellets
+
+- CP pellet: small icon, graduation-cap outline or stylized coin, 4x4 to 6x6px native, centered in open tiles.
+- Power pellet: larger (8x8px native), pulsing animation (scale or brightness oscillation via canvas alpha, 2-frame alternation), styled as a stamp/seal icon suggesting "Freiversuch."
+
+### 6.6 HUD
+
+Top bar, full width, fixed height (~48px at render scale):
+- Left: CP score, large readable pixel font (e.g. bundled "Press Start 2P" font file, no CDN dependency since booth may be offline).
+- Center: current board name label (e.g. "PK 4.7", section 7).
+- Right: lives remaining, shown as small player-icon glyphs, one per remaining life.
+
+### 6.7 Title Screen
+
+- TU Braunschweig logo (user-supplied PNG, see section 14) placed top-center or centered above the game title text.
+- Game title text below or beside the logo, pixel font matching HUD font.
+- "Press any key to start" or equivalent prompt, pulsing/blinking.
+- Leaderboard top 10 displayed below the prompt (section 8.4), always visible on this screen.
+- Logo file expected at `public/assets/ui/logo.webp`, native resolution preserved, scaled down in CSS/canvas to fit the title screen layout without upscaling artifacts.
+
+---
+
+## 7. Boards / Campus Map Variants
+
+Three map variants, same engine and enemy logic, different wall layout and wall tileset texture. Cycle order: PK 4.7/4.4 → Forumsplatz/Mensa → Altgebäude, loop back to first after third is cleared.
+
+| Variant | Layout character | Notes |
+|---|---|---|
+| PK 4.7 / PK 4.4 | Corridor-heavy, lecture-hall block layout | Walls represent lecture hall blocks, corridors are hallways. |
+| Forumsplatz / Mensa | Open plaza layout, fewer tight corridors, more open floor | Different maze topology on purpose: enemies harder to lose in open space, forces different player strategy versus corridor timing. |
+| Altgebäude | Dense corridor-heavy, classic maze feel | Closest to traditional Pacman board density, hardest to navigate variant. |
+
+Each variant is a separate tile-grid data file (JSON or JS array) in `maps.js`, using a simple char-grid format:
+
+# = wall
+. = open path with CP pellet
+  (space) = open path, no pellet (rare, visual breathing room)
+o = power pellet
+P = player start
+1 2 3 4 = enemy home-base start positions for Prof1/Prof2/Prüfung1/Prüfung2
+T = tunnel edge tile (wraps to opposite T on same row/column), optional
+
+Each map file also specifies which tileset PNG (`pk47_walls.png`, `forumsplatz_walls.png`, `altgebaeude_walls.png`) to use for wall rendering, keeping engine and art decoupled from layout data.
+
+Board name shown in the HUD is pulled from the map's metadata field (`name: "PK 4.7 / PK 4.4"` etc).
+
+---
+
+## 8. Leaderboard (Persistent, Disk-Backed)
+
+### 8.1 Why not localStorage
+
+Booth machine's browser state may be cleared or the browser restarted between visitors. Leaderboard must survive that, so it lives server-side on disk, not in the browser.
+
+### 8.2 Server API
+
+- `GET /api/leaderboard` — returns top 10 entries, sorted by score descending: `{ "entries": [ { "name": "...", "score": 0, "timestamp": "..." } ] }`.
+- `POST /api/leaderboard` — body `{ "name": "string, max 12 chars, alphanumeric only", "score": integer }`. Appends entry, writes file, returns updated top 10.
+- Bind server to `localhost` only (`app.listen(3000, '127.0.0.1')`), not internet-facing, booth-only use.
+- No auth needed given local-only binding.
+
+### 8.3 File Write Safety
+
+Write to `data/leaderboard.json` using an atomic write pattern: write to `data/leaderboard.json.tmp`, then rename over the original, to avoid corruption if the process is killed mid-write (booth laptops get power-cycled).
+
+On server startup, if `data/leaderboard.json` doesn't exist, create it with `{ "entries": [] }`.
+
+### 8.4 Frontend Flow
+
+- Start screen and game-over screen both fetch and display current top 10 fresh from the server (no client-side caching beyond the current screen render).
+- On game over: show name entry field (max 12 chars, filtered to alphanumeric client-side and again server-side), submit via POST, then re-fetch and display updated leaderboard.
+- Idle timeout: if no input for 30 seconds on the game-over/leaderboard screen, auto-return to the start screen so booth staff don't need to manually reset between visitors.
+
+---
+
+## 9. Installer Scripts
+
+### 9.1 Windows — `install_windows.bat`
+
+@echo off
+where node >nul 2>nul
+if %errorlevel% neq 0 (
+    echo Node.js not found. Install from https://nodejs.org and rerun this script.
+    pause
+    exit /b 1
+)
+call npm install
+start "" node server.js
+timeout /t 2 >nul
+start chrome --kiosk http://localhost:3000
+
+Note for Claude Code: verify `chrome` resolves on PATH in a typical Windows install, or add full path detection (`%ProgramFiles%\Google\Chrome\Application\chrome.exe`) with a plain `start http://localhost:3000` fallback if Chrome isn't found at all.
+
+### 9.2 Mac — `install_mac.command`
+
+#!/bin/bash
+cd "$(dirname "$0")"
+if ! command -v node >/dev/null 2>&1; then
+    echo "Node.js not found. Install via 'brew install node' or from https://nodejs.org"
+    read -p "Press enter to exit"
+    exit 1
+fi
+npm install
+node server.js &
+sleep 2
+open -a "Google Chrome" --args --kiosk http://localhost:3000 || open http://localhost:3000
+
+Must be marked executable (`chmod +x install_mac.command`) as part of the build/packaging step so double-click works from Finder without a manual terminal step.
+
+---
+
+## 10. README.md Content (generate as an actual file in the repo root)
+
+Cover, in this order:
+
+1. **What this is** — one paragraph, plain description of the game and its purpose (Messe booth attraction).
+2. **Requirements** — Node.js minimum version (e.g. Node 18+), Chrome recommended for kiosk mode, no internet required after initial `npm install`.
+3. **Setup (first time only)** — copy the folder, run the installer script once (runs `npm install` automatically). Manual alternative: `npm install` then `node server.js`.
+4. **Running at the booth** — double-click `install_windows.bat` or `install_mac.command`. Game opens in kiosk/fullscreen mode automatically. Exit kiosk mode: Alt+F4 (Windows) or Cmd+Q (Mac).
+5. **Leaderboard data location** — `data/leaderboard.json`, safe to back up or reset between events (delete file or reset to `{ "entries": [] }` to clear).
+6. **Controls** — arrow keys or WASD to move.
+7. **Known constraints** — server binds to localhost only, single-machine use, no multiplayer or network sync between booths.
+8. **Troubleshooting** — port 3000 already in use (change via `PORT=3001 node server.js`), Node not found errors, Chrome not found fallback behavior.
+
+---
+
+## 11. Build Order (recommended sequence for Claude Code)
+
+1. Scaffold project structure and `package.json` (Express dependency only).
+2. Build `server.js`: static file serving, leaderboard API, atomic file writes. Test with a stub `index.html`.
+3. Build grid/movement engine in `game.js`: tile grid rendering, player movement with input buffering, wall collision, one hardcoded test map.
+4. Build pellet collection and scoring.
+5. Build one enemy with direct-chase AI, verify collision/life-loss/reset flow.
+6. Add remaining 3 enemies with their distinct AI strategies (section 5 table).
+7. Add power pellet, frightened state, eaten state.
+8. Add all 3 map variants (section 7) and board-clear transition logic.
+9. Build HUD.
+10. Build start screen, game-over screen, name entry, leaderboard display, idle timeout.
+11. Swap in final pixel art assets (placeholder colored rectangles acceptable for steps 1-10).
+12. Write installer scripts, test on both platforms if possible.
+13. Write README.md.
+
+---
+
+## 12. Explicit Non-Goals
+
+- No online/networked multiplayer.
+- No account system, no auth.
+- No mobile touch controls (booth uses keyboard).
+- No sound requirement stated; add only if time permits, not blocking for a working build.
+
+---
+
+## 13. Confirmed Decisions
+
+- Maze layouts: stylized approximations of PK 4.7/4.4, Forumsplatz/Mensa, and Altgebäude are acceptable. No precise floorplan tracing required.
+- TU Braunschweig logo will be supplied by the user, placed on the title screen per section 6.7.
+
+## 14. Required User-Supplied Assets
+
+Only one asset is required from the user:
+
+- **TU Braunschweig logo**, WEBP, transparent background preferred. Save as `public/assets/ui/logo.webp`.
+
+Everything else in this spec (player sprite, enemy sprites, pellets, wall tilesets, pixel font, UI icons) can be generated or sourced by Claude Code as pixel art / open-license assets during the build, since layouts are stylized approximations rather than exact recreations. No other real-world asset (building photos, official floorplans, CI style guide) is required to complete the build described here. If exact TU Braunschweig CI colors are wanted beyond a general blue/gold approximation, supply the hex codes; otherwise Claude Code will pick a reasonable approximation.
+
+Note for Claude Code: browser support for WEBP is universal in current Chrome, no conversion needed for direct `<img>` or canvas `drawImage` use.
+
+================================================================================
+END OF FILE
+================================================================================
