@@ -53,7 +53,7 @@ const READY_TIME = 2.2;
 const DEATH_TIME = 1.5;
 const BOARD_CLEAR_TIME = 2.6;
 const IDLE_TIMEOUT = 30;
-const BONUS_AT = [70, 170];       // pellets eaten thresholds
+const BONUS_EVERY = 60;           // a bonus item spawns every N pellets eaten
 const BONUS_LIFETIME = 9;
 
 // ---- state -----------------------------------------------------------
@@ -66,7 +66,7 @@ let frightDuration = FRIGHT_START, frightActive = false, frightTimer = 0, fright
 let boardTimer = 0, phaseTimer = 0, animClock = 0;
 let pelletsEaten = 0, totalPellets = 0, bonusesSpawned = 0;
 let player = null, enemies = [], particles = [], floaters = [];
-let bonus = null, bonusTile = null;
+let bonus = null;
 let hitstop = 0, shake = 0;
 let waveIndex = 0, waveTimer = 0, mode = 'scatter';
 let pelletsLeft = 999, extraLifeGiven = false;
@@ -132,13 +132,20 @@ function makeEnemy(type, home) {
 }
 
 function findBonusTile() {
-  // an open path tile a couple rows below the ghost house, near centre
-  for (let r = 19; r < MAP_ROWS - 2; r++) {
-    for (const c of [13, 14, 12, 15]) {
-      if (grid[r][c] === '.' || grid[r][c] === ' ') return { col: c, row: r };
+  // random open corridor tile, away from the player and outside the house,
+  // so every bonus shows up somewhere new
+  const cands = [];
+  for (let r = 1; r < MAP_ROWS - 1; r++) {
+    for (let c = 1; c < MAP_COLS - 1; c++) {
+      const ch = grid[r][c];
+      if (ch !== '.' && ch !== ' ') continue;
+      if (needsExit(c, r)) continue;
+      if (dist2(c, r, player.x, player.y) < 64) continue;   // >= 8 tiles away
+      cands.push({ col: c, row: r });
     }
   }
-  return { col: 13, row: 22 };
+  if (!cands.length) return { col: 13, row: 22 };
+  return cands[Math.floor(Math.random() * cands.length)];
 }
 
 function placePowerNear(g, r, c) {
@@ -173,7 +180,6 @@ function loadBoard(index, freshGame) {
   mazeImg = prerenderMaze(grid, map, RTILE, MAP_ROWS, MAP_COLS);
   totalPellets = countPellets();
   pelletsLeft = totalPellets;
-  bonusTile = findBonusTile();
   bonus = null;
   particles = []; floaters = [];
   boardTimer = 0; frightActive = false; frightTimer = 0; chain = 0;
@@ -286,6 +292,31 @@ function needsExit(col, row) {
          (row === 13 && (col === 13 || col === 14));
 }
 const HOUSE_EXIT = { col: 13, row: 10 };
+const HOUSE_DOOR = { col: 13, row: 12 };   // corridor tile directly above the gap
+
+// True shortest-path first step (BFS). Greedy tile-distance strands eaten
+// enemies below the house, where every step toward the door looks "farther".
+function bfsDir(fromCol, fromRow, target) {
+  if (fromCol === target.col && fromRow === target.row) return null;
+  const seen = new Uint8Array(MAP_COLS * MAP_ROWS);
+  const q = [[fromCol, fromRow, null]];
+  seen[fromRow * MAP_COLS + fromCol] = 1;
+  for (let h = 0; h < q.length; h++) {
+    const [c, r, first] = q[h];
+    for (const d of ['up', 'down', 'left', 'right']) {
+      const [dx, dy] = DIRS[d];
+      const nc = wrapCol(c + dx), nr = r + dy;
+      if (nr < 0 || nr >= MAP_ROWS || !isOpen(nc, nr)) continue;
+      const idx = nr * MAP_COLS + nc;
+      if (seen[idx]) continue;
+      seen[idx] = 1;
+      const f = first || d;
+      if (nc === target.col && nr === target.row) return f;
+      q.push([nc, nr, f]);
+    }
+  }
+  return null;
+}
 
 function chooseEnemyDir(e, col, row) {
   const opts = ['up', 'down', 'left', 'right'].filter((d) => {
@@ -318,7 +349,15 @@ function chooseEnemyDir(e, col, row) {
     const pool = away.length ? away : allowed;
     return pool[Math.floor(Math.random() * pool.length)];
   }
-  if (e.state === 'eaten') return greedy(col, row, allowed, e.homeTile);
+  if (e.state === 'eaten') {
+    // outside the house: BFS to the tile above the door (guaranteed arrival),
+    // then drop down through the gap to the home slot
+    if (!needsExit(col, row)) {
+      const d = bfsDir(col, row, HOUSE_DOOR);
+      if (d) return d;
+    }
+    return greedy(col, row, opts, e.homeTile);
+  }
   // pruefung1 is only erratic while chasing; during scatter it heads home
   if (e.type === 'pruefung1' && mode !== 'scatter') {
     return Math.random() < 0.5 ? greedy(col, row, allowed, getTarget(e))
@@ -496,9 +535,12 @@ function triggerFright() {
 }
 
 function maybeBonus() {
-  if (bonusesSpawned < BONUS_AT.length && pelletsEaten >= BONUS_AT[bonusesSpawned]) {
+  if (bonus) return;                                   // one at a time
+  if (pelletsEaten >= (bonusesSpawned + 1) * BONUS_EVERY) {
     bonusesSpawned++;
-    bonus = { col: bonusTile.col, row: bonusTile.row, life: BONUS_LIFETIME, age: 0 };
+    const t = findBonusTile();
+    bonus = { col: t.col, row: t.row, life: BONUS_LIFETIME, age: 0 };
+    floatText(px(t.col), py(t.row) - RTILE * 0.9, map.bonus.label + '!', '#e8c170');
   }
 }
 
@@ -658,6 +700,7 @@ function drawBonus() {
   const pop = Math.min(1, bonus.age / 0.3);
   const ease = pop * (2 - pop);                       // ease-out
   const size = RTILE * 1.15 * (0.3 + 0.7 * ease) * (1 + 0.06 * Math.sin(animClock * 4));
+  drawShadow(px(bonus.col), py(bonus.row), 0.55);
   drawBonusIcon(ctx, map.bonus.icon, px(bonus.col), py(bonus.row), size);
 }
 
@@ -789,7 +832,28 @@ function centerBanner(text, sub, color) {
   }
 }
 
+let vignetteG = null;
+function drawVignette() {
+  if (!vignetteG) {
+    const cx = canvas.width / 2, cy = HUD_HEIGHT + (canvas.height - HUD_HEIGHT) / 2;
+    vignetteG = ctx.createRadialGradient(cx, cy, canvas.width * 0.34, cx, cy, canvas.width * 0.74);
+    vignetteG.addColorStop(0, 'rgba(0,0,0,0)');
+    vignetteG.addColorStop(1, 'rgba(0,0,0,0.34)');
+  }
+  ctx.fillStyle = vignetteG;
+  ctx.fillRect(0, HUD_HEIGHT, canvas.width, canvas.height - HUD_HEIGHT);
+}
+
 function drawMazeDetails() {
+  // thin accent frame around the play area, ties the board to the level colour
+  ctx.save();
+  ctx.strokeStyle = map.glow;
+  ctx.globalAlpha = 0.3;
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, 3, HUD_HEIGHT + 3, canvas.width - 6, canvas.height - HUD_HEIGHT - 6, 10);
+  ctx.stroke();
+  ctx.restore();
+
   // ghost-house door: a light bar across the exit gap so the one-way door reads
   ctx.fillStyle = 'rgba(231,213,179,0.55)';
   ctx.fillRect(13 * RTILE + 2, HUD_HEIGHT + 13 * RTILE + 2, 2 * RTILE - 4, 4);
@@ -838,6 +902,7 @@ function renderGame() {
   drawEnemies();
   if (state === 'dying') drawPlayer(phaseTimer / DEATH_TIME);
   else drawPlayer(null);
+  drawVignette();
   drawHud();
   ctx.restore();
 
@@ -968,10 +1033,31 @@ function syncSettingsControls() {
 
 // ---- init ------------------------------------------------------------
 
+// little parade of the cast on the title screen, built from the live sprites
+function buildCastRow() {
+  const row = el('castRow');
+  if (!row) return;
+  const defs = [
+    () => getPlayerSprite('right', 2, 96),
+    () => getEnemySprite('prof1', 'down', 0, 'normal', 96),
+    () => getEnemySprite('prof2', 'down', 0, 'normal', 96),
+    () => getEnemySprite('pruefung1', 'down', 0, 'normal', 96),
+    () => getEnemySprite('pruefung2', 'down', 1, 'normal', 96),
+  ];
+  row.innerHTML = '';
+  for (const fn of defs) {
+    const img = document.createElement('img');
+    img.src = fn().toDataURL();
+    img.alt = '';
+    row.appendChild(img);
+  }
+}
+
 async function init() {
   if (document.fonts && document.fonts.load) {
     try { await document.fonts.load('16px PressStart2P'); } catch (e) { /* ignore */ }
   }
+  buildCastRow();
   await fetchLeaderboard();
   syncSettingsControls();
   showOverlay('titleScreen');
