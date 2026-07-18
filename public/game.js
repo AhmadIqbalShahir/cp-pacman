@@ -33,6 +33,22 @@ const FLASH_WINDOW = 2;
 
 const RELEASE = { prof1: 0, prof2: 1.5, pruefung1: 3, pruefung2: 4.5 };
 const TOTAL_LEVELS = 3;
+
+// Classic scatter/chase waves: enemies periodically break off to their own
+// corners so they spread across the maze instead of trailing the player in
+// one clump. Direction reversal on each switch signals the change.
+const WAVES = [
+  { dur: 6, mode: 'scatter' }, { dur: 18, mode: 'chase' },
+  { dur: 6, mode: 'scatter' }, { dur: 18, mode: 'chase' },
+  { dur: 4, mode: 'scatter' }, { dur: Infinity, mode: 'chase' },
+];
+const SCATTER_TARGETS = {
+  prof1: { col: 25, row: 1 }, prof2: { col: 2, row: 1 },
+  pruefung1: { col: 25, row: 29 }, pruefung2: { col: 2, row: 29 },
+};
+const ELROY_PELLETS = 50;          // prof1 stops scattering below this
+const ELROY_PELLETS_2 = 20;        // ...and gets a second speed bump here
+const EXTRA_LIFE_AT = 5000;
 const READY_TIME = 2.2;
 const DEATH_TIME = 1.5;
 const BOARD_CLEAR_TIME = 2.6;
@@ -51,7 +67,9 @@ let boardTimer = 0, phaseTimer = 0, animClock = 0;
 let pelletsEaten = 0, totalPellets = 0, bonusesSpawned = 0;
 let player = null, enemies = [], particles = [], floaters = [];
 let bonus = null, bonusTile = null;
-let hitstop = 0;
+let hitstop = 0, shake = 0;
+let waveIndex = 0, waveTimer = 0, mode = 'scatter';
+let pelletsLeft = 999, extraLifeGiven = false;
 let lastInput = Date.now();
 let leaderboard = [];
 
@@ -154,14 +172,17 @@ function loadBoard(index, freshGame) {
 
   mazeImg = prerenderMaze(grid, map, RTILE, MAP_ROWS, MAP_COLS);
   totalPellets = countPellets();
+  pelletsLeft = totalPellets;
   bonusTile = findBonusTile();
   bonus = null;
   particles = []; floaters = [];
   boardTimer = 0; frightActive = false; frightTimer = 0; chain = 0;
+  waveIndex = 0; waveTimer = 0; mode = WAVES[0].mode;
 
   if (freshGame) {
     score = 0; lives = 3; boardsCleared = 0; semester = 1;
     frightDuration = FRIGHT_START; pelletsEaten = 0; bonusesSpawned = 0;
+    extraLifeGiven = false;
   }
 }
 
@@ -173,6 +194,7 @@ function resetActors() {
     e.dir = null; e.state = 'waiting'; e.lastCell = null;
   }
   boardTimer = 0; frightActive = false; frightTimer = 0; chain = 0;
+  waveIndex = 0; waveTimer = 0; mode = WAVES[0].mode;
 }
 
 // ---- movement --------------------------------------------------------
@@ -226,8 +248,21 @@ function greedy(col, row, opts, target) {
   return best;
 }
 
+function reverseEnemies() {
+  for (const e of enemies) {
+    if (e.state !== 'normal' || !e.dir) continue;
+    e.dir = OPP[e.dir];
+    e.lastCell = null;
+  }
+}
+
+function isElroy(e) { return e.type === 'prof1' && e.state === 'normal' && pelletsLeft < ELROY_PELLETS; }
+
 function getTarget(e) {
   const pt = { col: Math.round(player.x), row: Math.round(player.y) };
+  // scatter phase: everyone retreats to their own corner (except an elroy
+  // prof1, who never stops hunting once the board is nearly cleared)
+  if (mode === 'scatter' && !isElroy(e)) return SCATTER_TARGETS[e.type];
   switch (e.type) {
     case 'prof1': return pt;
     case 'prof2': {
@@ -284,7 +319,8 @@ function chooseEnemyDir(e, col, row) {
     return pool[Math.floor(Math.random() * pool.length)];
   }
   if (e.state === 'eaten') return greedy(col, row, allowed, e.homeTile);
-  if (e.type === 'pruefung1') {
+  // pruefung1 is only erratic while chasing; during scatter it heads home
+  if (e.type === 'pruefung1' && mode !== 'scatter') {
     return Math.random() < 0.5 ? greedy(col, row, allowed, getTarget(e))
       : allowed[Math.floor(Math.random() * allowed.length)];
   }
@@ -320,6 +356,17 @@ function updatePlaying(dt) {
 
   for (const e of enemies)
     if (e.state === 'waiting' && boardTimer >= e.releaseAt) e.state = 'normal';
+
+  // scatter/chase wave clock (paused during Freiversuch, like the original)
+  if (!frightActive) {
+    waveTimer += dt;
+    while (waveTimer >= WAVES[waveIndex].dur) {
+      waveTimer -= WAVES[waveIndex].dur;
+      waveIndex = Math.min(waveIndex + 1, WAVES.length - 1);
+      mode = WAVES[waveIndex].mode;
+      reverseEnemies();
+    }
+  }
 
   if (frightActive) {
     frightTimer -= dt;
@@ -376,6 +423,10 @@ function updatePlaying(dt) {
     let sp = PLAYER_SPEED * sf;
     if (e.state === 'frightened') sp *= FRIGHT_SPEED;
     else if (e.state === 'eaten') sp *= EATEN_SPEED;
+    // elroy: prof1 speeds up as the board empties
+    if (isElroy(e)) sp *= pelletsLeft < ELROY_PELLETS_2 ? 1.14 : 1.07;
+    // enemies take the tunnel slowly (classic), giving the player an escape route
+    if (e.state !== 'eaten' && Math.round(e.y) === map.tunnelRow && (e.x < 4 || e.x > MAP_COLS - 5)) sp *= 0.6;
     moveMover(e, sp, dt, enemyWant);
     e.animTimer += dt;
     if (e.animTimer > 0.14) { e.animTimer = 0; e.animFrame = (e.animFrame + 1) % 2; }
@@ -403,7 +454,15 @@ function updatePlaying(dt) {
 
   updateFx(dt);
 
-  if (countPellets() === 0) {
+  // extra life once per game (booth crowd-pleaser)
+  if (!extraLifeGiven && score >= EXTRA_LIFE_AT) {
+    extraLifeGiven = true; lives++;
+    AudioEngine.sfx.extraLife();
+    floatText(px(player.x), py(player.y) - RTILE, '+1 LEBEN', '#a8ca58');
+  }
+
+  pelletsLeft = countPellets();
+  if (pelletsLeft === 0) {
     score += 1000; boardsCleared++;
     frightActive = false; AudioEngine.endFright();
     AudioEngine.sfx.boardClear();
@@ -447,6 +506,8 @@ function startDeath() {
   frightActive = false;
   AudioEngine.endFright();
   AudioEngine.sfx.death();
+  burst(px(player.x), py(player.y), '#e8c170', 18);
+  shake = 0.45;
   state = 'dying'; phaseTimer = DEATH_TIME;
 }
 
@@ -600,9 +661,19 @@ function drawBonus() {
   drawBonusIcon(ctx, map.bonus.icon, px(bonus.col), py(bonus.row), size);
 }
 
+function drawShadow(x, y, scale) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + SPRITE * 0.4, SPRITE * 0.28 * scale, SPRITE * 0.08 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawPlayer(dyingT) {
   ctx.save();
   const x = px(player.x), y = py(player.y);
+  if (dyingT == null) drawShadow(x, y, 1);
   if (dyingT != null) {
     ctx.globalAlpha = Math.max(0, dyingT);
     ctx.translate(x, y);
@@ -624,10 +695,14 @@ function enemyStateKey(e) {
 }
 
 function drawEnemies() {
-  for (const e of enemies) {
-    if (e.state === 'waiting' && boardTimer < e.releaseAt - 0.01 && state !== 'ready') { /* still draw in house */ }
+  for (let i = 0; i < enemies.length; i++) {
+    const e = enemies[i];
+    const x = px(e.x), y = py(e.y);
+    // gentle idle bob, offset per enemy so they don't move in lockstep
+    const bob = e.state === 'eaten' ? 0 : Math.sin(animClock * 6 + i * 1.7) * SPRITE * 0.03;
+    if (e.state !== 'eaten') drawShadow(x, y, 0.9);
     const spr = getEnemySprite(e.type, e.dir || 'down', e.animFrame, enemyStateKey(e), SPRITE);
-    ctx.drawImage(spr, px(e.x) - SPRITE / 2, py(e.y) - SPRITE / 2, SPRITE, SPRITE);
+    ctx.drawImage(spr, x - SPRITE / 2, y - SPRITE / 2 + bob, SPRITE, SPRITE);
   }
 }
 
@@ -651,17 +726,33 @@ function drawFx() {
 function drawHud() {
   ctx.fillStyle = '#0a0b18';
   ctx.fillRect(0, 0, canvas.width, HUD_HEIGHT);
-  ctx.fillStyle = map.glow;
-  ctx.fillRect(0, HUD_HEIGHT - 2, canvas.width, 2);
+
+  // bottom edge: Freiversuch countdown bar while active, plain accent line otherwise
+  if (frightActive && frightMax > 0) {
+    const w = canvas.width * Math.max(0, frightTimer / frightMax);
+    const flashing = frightTimer <= FLASH_WINDOW && Math.floor(frightTimer * 6) % 2 === 0;
+    ctx.fillStyle = '#20242f';
+    ctx.fillRect(0, HUD_HEIGHT - 5, canvas.width, 5);
+    ctx.fillStyle = flashing ? '#cf573c' : '#e8c170';
+    ctx.fillRect(0, HUD_HEIGHT - 5, w, 5);
+  } else {
+    ctx.fillStyle = map.glow;
+    ctx.fillRect(0, HUD_HEIGHT - 2, canvas.width, 2);
+  }
 
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
-  ctx.font = '11px PressStart2P, monospace';
+  ctx.font = '10px PressStart2P, monospace';
   ctx.fillStyle = '#8a93c8';
-  ctx.fillText('CP', 16, 20);
-  ctx.font = '18px PressStart2P, monospace';
+  ctx.fillText('CP', 16, 15);
+  ctx.font = '16px PressStart2P, monospace';
   ctx.fillStyle = '#fff2c2';
-  ctx.fillText(String(score), 16, 40);
+  ctx.fillText(String(score), 16, 33);
+  if (leaderboard.length) {
+    ctx.font = '12px VT323, monospace';
+    ctx.fillStyle = '#819796';
+    ctx.fillText('REKORD ' + leaderboard[0].score, 16, 50);
+  }
 
   ctx.textAlign = 'center';
   ctx.font = '13px PressStart2P, monospace';
@@ -698,7 +789,38 @@ function centerBanner(text, sub, color) {
   }
 }
 
+function drawMazeDetails() {
+  // ghost-house door: a light bar across the exit gap so the one-way door reads
+  ctx.fillStyle = 'rgba(231,213,179,0.55)';
+  ctx.fillRect(13 * RTILE + 2, HUD_HEIGHT + 13 * RTILE + 2, 2 * RTILE - 4, 4);
+
+  // tunnel hints: pulsing chevrons pointing out of the wrap corridor
+  const a = 0.25 + 0.2 * Math.sin(animClock * 3);
+  const ty = HUD_HEIGHT + (map.tunnelRow + 0.5) * RTILE;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = map.glow;
+  for (const s of [-1, 1]) {
+    const bx = s === -1 ? RTILE * 0.9 : canvas.width - RTILE * 0.9;
+    for (let i = 0; i < 2; i++) {
+      const ox = bx + s * -i * RTILE * 0.38;
+      ctx.beginPath();
+      ctx.moveTo(ox, ty - RTILE * 0.22);
+      ctx.lineTo(ox + s * -RTILE * 0.22, ty);
+      ctx.lineTo(ox, ty + RTILE * 0.22);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function renderGame() {
+  ctx.save();
+  if (shake > 0) {
+    const amp = 7 * (shake / 0.45);
+    ctx.translate((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp);
+  }
   drawBoardBg();
   ctx.drawImage(mazeImg, 0, HUD_HEIGHT);
   // board-clear: flash the walls bright (classic Pac-Man blink)
@@ -709,6 +831,7 @@ function renderGame() {
     ctx.drawImage(mazeImg, 0, HUD_HEIGHT);
     ctx.restore();
   }
+  drawMazeDetails();
   drawPellets();
   drawBonus();
   drawFx();
@@ -716,8 +839,9 @@ function renderGame() {
   if (state === 'dying') drawPlayer(phaseTimer / DEATH_TIME);
   else drawPlayer(null);
   drawHud();
+  ctx.restore();
 
-  if (state === 'ready') centerBanner('LEVEL ' + semester, map.name + ' · MACH DICH BEREIT', '#e8c170');
+  if (state === 'ready') centerBanner('LEVEL ' + semester, map.name + ' · START IN ' + Math.max(1, Math.ceil(phaseTimer)), '#e8c170');
   else if (state === 'boardClear') centerBanner('GESCHAFFT!',
     boardsCleared >= TOTAL_LEVELS ? '+1000 CP · STUDIUM ABGESCHLOSSEN' : '+1000 CP · NAECHSTES LEVEL', '#a8ca58');
   else if (state === 'paused') { /* overlay handles it */ }
@@ -729,6 +853,7 @@ let lastTime = performance.now();
 function frame(now) {
   const dt = Math.min(0.033, (now - lastTime) / 1000);
   lastTime = now;
+  shake = Math.max(0, shake - dt);
   update(dt);
   if (['controls', 'ready', 'playing', 'paused', 'dying', 'boardClear'].includes(state) && grid) renderGame();
   requestAnimationFrame(frame);

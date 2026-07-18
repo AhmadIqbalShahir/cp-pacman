@@ -76,11 +76,9 @@ function _drawPlayer(ctx, S, dir, frame) {
   ctx.beginPath();
   ctx.arc(cx, cy + S * 0.05, r * 1.2, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#2a2f37';                         // hood opening shade behind head
-  ctx.beginPath();
-  ctx.arc(cx, cy - S * 0.02, r * 1.06, Math.PI * 0.86, Math.PI * 0.14);
-  ctx.closePath();
-  ctx.fill();
+  ctx.strokeStyle = '#7e2f24';                      // hood outline
+  ctx.lineWidth = Math.max(1, S * 0.022);
+  ctx.stroke();
   // hood drawstrings
   ctx.strokeStyle = '#e7d5b3';
   ctx.lineWidth = Math.max(1, S * 0.03);
@@ -104,17 +102,27 @@ function _drawPlayer(ctx, S, dir, frame) {
   ctx.strokeStyle = '#b07d38';
   ctx.stroke();
 
-  // hair fringe peeking from the hood (skip facing up)
+  // dark mouth wedge inside the chomp so the bite reads against the hood
+  if (open > 0.06) {
+    ctx.fillStyle = '#4a1812';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r * 0.94, base - open, base + open);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // short hair fringe peeking from the hood (skip facing up)
   if (dir !== 'up') {
     ctx.fillStyle = '#3a2716';
     ctx.beginPath();
-    ctx.moveTo(cx - r * 0.7, cy - r * 0.45);
-    for (let i = 0; i <= 5; i++) {
-      const x = cx + (i / 5 - 0.5) * r * 1.4;
-      ctx.lineTo(x, cy - r * (i % 2 === 0 ? 0.98 : 0.7));
-      ctx.lineTo(x + r * 0.14, cy - r * 0.5);
+    ctx.moveTo(cx - r * 0.62, cy - r * 0.5);
+    for (let i = 0; i <= 4; i++) {
+      const x = cx + (i / 4 - 0.5) * r * 1.15;
+      ctx.lineTo(x, cy - r * (i % 2 === 0 ? 0.82 : 0.66));
+      ctx.lineTo(x + r * 0.13, cy - r * 0.55);
     }
-    ctx.lineTo(cx + r * 0.7, cy - r * 0.45);
+    ctx.lineTo(cx + r * 0.62, cy - r * 0.5);
     ctx.closePath();
     ctx.fill();
   }
@@ -176,11 +184,17 @@ function _drawProf(ctx, S, def, dir, frame) {
   ctx.fillStyle = def.skin;
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + s * rx * 0.98, cy + bob + S * 0.02, S * 0.05, S * 0.07, 0, 0, Math.PI * 2); ctx.fill(); }
 
-  // head
+  // head with a thin outline so it reads crisply against any floor colour
   const g = ctx.createRadialGradient(cx - rx * 0.3, cy - ry * 0.3, rx * 0.2, cx, cy, rx * 1.15);
   g.addColorStop(0, def.skinHi); g.addColorStop(1, def.skin);
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.ellipse(cx, cy + bob, rx, ry, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(58,42,26,0.55)';
+  ctx.lineWidth = Math.max(1, S * 0.018);
+  ctx.stroke();
+  // cheek blush for a bit of life
+  ctx.fillStyle = 'rgba(207,87,60,0.18)';
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + s * rx * 0.55, cy + bob + ry * 0.28, S * 0.06, S * 0.04, 0, 0, Math.PI * 2); ctx.fill(); }
 
   // front hair tufts
   for (const s of [-1, 1]) {
@@ -191,20 +205,27 @@ function _drawProf(ctx, S, def, dir, frame) {
   _puff(ctx, cx - S * 0.1, cy + bob - ry * 0.9, S * 0.08, HAIR_SH);
   _puff(ctx, cx + S * 0.1, cy + bob - ry * 0.9, S * 0.08, HAIR_SH);
 
-  // bushy eyebrows
-  ctx.fillStyle = HAIR;
-  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + s * S * 0.12, cy + bob - S * 0.09, S * 0.09, S * 0.045, 0, 0, Math.PI * 2); ctx.fill(); }
-
-  // eyes + round glasses
+  // eyes + round glasses (bigger lenses, pupils track movement)
   const look = { right: [0.09, 0], left: [-0.09, 0], up: [0, -0.07], down: [0, 0.07] }[dir] || [0, 0];
   for (const s of [-1, 1]) {
-    const gx = cx + s * S * 0.12, gy = cy + bob;
-    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(gx, gy, S * 0.088, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#10141f'; ctx.beginPath(); ctx.arc(gx + look[0] * S, gy + look[1] * S, S * 0.04, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#3a2f28'; ctx.lineWidth = Math.max(1, S * 0.02);
-    ctx.beginPath(); ctx.arc(gx, gy, S * 0.108, 0, Math.PI * 2); ctx.stroke();
+    const gx = cx + s * S * 0.125, gy = cy + bob;
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(gx, gy, S * 0.098, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#10141f'; ctx.beginPath(); ctx.arc(gx + look[0] * S, gy + look[1] * S, S * 0.045, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a2f28'; ctx.lineWidth = Math.max(1, S * 0.022);
+    ctx.beginPath(); ctx.arc(gx, gy, S * 0.118, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.beginPath(); ctx.moveTo(cx - S * 0.02, cy + bob); ctx.lineTo(cx + S * 0.02, cy + bob); ctx.stroke();
+  // temple arms of the glasses
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(cx + s * S * 0.24, cy + bob);
+    ctx.lineTo(cx + s * rx * 0.95, cy + bob - S * 0.02);
+    ctx.stroke();
+  }
+
+  // bushy eyebrows above the lenses
+  ctx.fillStyle = HAIR;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + s * S * 0.125, cy + bob - S * 0.15, S * 0.095, S * 0.042, s * -0.15, 0, Math.PI * 2); ctx.fill(); }
 
   // full white moustache (both)
   ctx.fillStyle = HAIR;
@@ -231,7 +252,7 @@ function _drawKlausur(ctx, S, def, dir, frame) {
 
   // little legs
   ctx.strokeStyle = '#7a6f58';
-  ctx.lineWidth = Math.max(1, S * 0.05);
+  ctx.lineWidth = Math.max(1, S * 0.038);
   ctx.lineCap = 'round';
   const legWob = (frame % 2 === 0) ? 1 : -1;
   ctx.beginPath();
@@ -291,12 +312,12 @@ function _drawKlausur(ctx, S, def, dir, frame) {
   // googly eyes peeking over the header
   const look = { right: [0.05, 0], left: [-0.05, 0], up: [0, -0.03], down: [0, 0.03] }[dir] || [0, 0];
   for (const s of [-1, 1]) {
-    const eyeX = gx + s * w * 0.2, eyeY = y - S * 0.01;
+    const eyeX = gx + s * w * 0.18, eyeY = y;
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(eyeX, eyeY, S * 0.08, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#5a5040'; ctx.lineWidth = Math.max(1, S * 0.015); ctx.stroke();
+    ctx.beginPath(); ctx.arc(eyeX, eyeY, S * 0.062, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#5a5040'; ctx.lineWidth = Math.max(1, S * 0.013); ctx.stroke();
     ctx.fillStyle = '#10141f';
-    ctx.beginPath(); ctx.arc(eyeX + look[0] * S, eyeY + look[1] * S, S * 0.035, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(eyeX + look[0] * S, eyeY + look[1] * S, S * 0.028, 0, Math.PI * 2); ctx.fill();
   }
 }
 
