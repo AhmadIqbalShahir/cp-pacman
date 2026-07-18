@@ -104,6 +104,78 @@ maze layout format, the leaderboard API contract, atomic file writes, the
 installer script behavior, and the README content requirements.
 
 
+PART 1B: REVAMP (post-review polish pass)
+================================================================================
+
+After the first working build, the game was revamped for a more polished,
+"complete-game" feel and to fix feedback that it read as generic/AI-made and
+did not look enough like a parody. All of the following is now in the repo.
+
+DESIGN SYSTEM -- one deliberate, human-authored reference
+--------------------------------------------------------------------------------
+- The entire game is anchored to the APOLLO palette (by AdamCYounis,
+  lospec.com/palette-list/apollo) -- warm golds/terracotta plus muted teal
+  and green. This replaced the earlier generic neon-blue/purple gradients and
+  is applied consistently to walls, sprites, pellets, HUD and every UI panel.
+- Typography is now uniform ("einheitlich"): exactly two fonts, used by role.
+  Press Start 2P for headings/HUD/labels; VT323 (bundled at
+  public/assets/fonts/VT323.woff2) for all body/UI text. The mismatched
+  system-ui sans is gone. Both fonts are local -- no CDN, still offline-safe.
+- No emojis anywhere. Bonus items (Kaffee, Currywurst, Bib-Buch) are drawn as
+  vector icons on canvas; the pause and speaker/mute controls are inline SVG;
+  decorative emoji in labels were removed.
+- Walls are rendered as solid, corner-aware rounded bars with depth and a lit
+  top edge (a designed look) instead of the earlier neon "donut" tubes.
+- Stronger parody: chomping student with a graduation cap, Professors in
+  blazers with glasses (red + navy), Klausur exam-sheets stamped "5,0", the
+  Freiversuch stamp power-up, and German flavour text throughout
+  (DURCHGEFALLEN on death, SEMESTER GESCHAFFT on board clear, BESTANDEN when
+  eating an enemy).
+
+NEW SYSTEMS & FEATURES
+--------------------------------------------------------------------------------
+- Sound: public/audio.js -- a fully procedural Web Audio engine. SFX (chomp,
+  power pellet, eat-prof arpeggio, death, bonus, menu, start/board-clear
+  jingles) plus a looping chiptune background track. Independent SFX and music
+  volume sliders + mute toggles, persisted to localStorage. No audio files are
+  shipped, so the booth stays offline.
+- HTML overlay UI (replaces the old canvas-drawn menus): an animated title
+  screen, a Settings panel (music/SFX sliders + mute), a Pause menu (also with
+  sound controls), an Anleitung/how-to screen, and a Game-Over/leaderboard
+  screen -- all styled with the shared design system.
+- Controls intro: a "STEUERUNG" card with drawn key-caps (arrow keys + WASD)
+  is shown at the start of each game before the round begins.
+- Pause: a pause button (top-right) and the P / Esc keys, with a resume + quit
+  menu. A quick mute button sits next to it during play.
+- Movement was rewritten to continuous tile coordinates with instant reversal
+  and responsive cornering, fixing the earlier "wanky" tile-snap feel.
+- In-round polish: staggered "READY?" countdown, a 2nd-and-later bonus item
+  that appears mid-board, particle bursts and floating score text, and a
+  death spin animation.
+
+BUGS FOUND & FIXED WHILE TESTING THE REVAMP
+--------------------------------------------------------------------------------
+- Enemies could get stuck inside the ghost house (greedy AI alone cannot
+  navigate the narrow exit gap). Added scripted house-exit steering plus a
+  one-way door so enemies leave and roam the maze, while eaten "eyes" can
+  still return home to respawn.
+- The controls intro overlay initially did not appear (it was missing from the
+  overlay-manager list). Fixed.
+
+TESTING NOTES
+--------------------------------------------------------------------------------
+Verified: title/controls/settings/pause/game-over screens; smooth movement
+(continuous motion, instant reversal, cornering); pellet scoring; enemy
+release, house-exit and roaming; power pellet / frightened / eaten states;
+collision, life loss and reset; board render; and a live leaderboard POST/GET
+round-trip (an entry was submitted through the UI, confirmed on disk, then the
+file was reset to { "entries": [] }).
+
+Note on framerate: browsers throttle requestAnimationFrame when a tab is
+hidden/backgrounded. On the booth (a normal visible/kiosk window) the game
+runs at full framerate; that is the intended environment.
+
+
 PART 2: ORIGINAL TECH SPEC (as supplied, verbatim)
 ================================================================================
 

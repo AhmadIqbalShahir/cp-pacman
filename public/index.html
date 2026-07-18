@@ -3,21 +3,151 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CP-Pacman — Messe Edition</title>
+<title>CP-Pacman · Campus-Jagd</title>
 <link rel="stylesheet" href="style.css">
-<style>
-@font-face {
-  font-family: 'PixelFont';
-  src: local('Press Start 2P');
-}
-</style>
 </head>
 <body>
   <div id="stage">
     <canvas id="game"></canvas>
-    <input id="nameEntry" type="text" maxlength="12" autocomplete="off" spellcheck="false" />
+
+    <!-- In-play controls (top-right) -->
+    <div id="playControls" class="hidden">
+      <button id="pauseBtn" class="icon-btn" title="Pause (P)" aria-label="Pause">
+        <svg viewBox="0 0 24 24" width="18" height="18"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+      </button>
+      <button id="muteBtn" class="icon-btn" title="Ton an/aus" aria-label="Ton"></button>
+    </div>
+
+    <!-- ===================== TITLE SCREEN ===================== -->
+    <div id="titleScreen" class="overlay">
+      <div class="title-bg"></div>
+      <div class="title-inner">
+        <img id="titleLogo" src="assets/ui/logo.webp" alt="TU Braunschweig" />
+        <h1 class="game-title">CP&#8209;PACMAN</h1>
+        <div class="game-sub">CAMPUS&#8209;JAGD</div>
+        <p class="tagline">Sammle <b>Credit Points</b>, weiche <b>Profs</b> und <b>Klausuren</b> aus
+          und schnapp dir den <b>Freiversuch</b>.</p>
+
+        <button id="playBtn" class="big-btn">SPIEL STARTEN</button>
+
+        <div class="menu-row">
+          <button id="howBtn" class="ghost-btn">ANLEITUNG</button>
+          <button id="settingsBtn" class="ghost-btn">EINSTELLUNGEN</button>
+        </div>
+
+        <div class="board-panel">
+          <div class="board-panel-head">BESTENLISTE</div>
+          <ol id="titleLeaderboard" class="lb-list"><li class="lb-empty">noch keine scores</li></ol>
+        </div>
+      </div>
+      <div class="credit">TU Braunschweig</div>
+    </div>
+
+    <!-- ===================== CONTROLS INTRO ===================== -->
+    <div id="controlsScreen" class="overlay hidden">
+      <div class="panel">
+        <h2>STEUERUNG</h2>
+        <div class="controls-keys">
+          <div class="key-cluster">
+            <div class="key-row"><span class="keycap">↑</span></div>
+            <div class="key-row"><span class="keycap">←</span><span class="keycap">↓</span><span class="keycap">→</span></div>
+          </div>
+          <div class="key-or">ODER</div>
+          <div class="key-cluster">
+            <div class="key-row"><span class="keycap">W</span></div>
+            <div class="key-row"><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span></div>
+          </div>
+        </div>
+        <p class="controls-note">Bewege den Studi durch den Campus.<br>
+          Sammle alle <b>CP</b> · friss den <b>Freiversuch</b> · weiche <b>Profs &amp; Klausuren</b> aus.</p>
+        <p class="controls-hint">Pause mit <span class="keycap sm">P</span></p>
+        <button id="startRoundBtn" class="big-btn">LOS GEHT'S</button>
+      </div>
+    </div>
+
+    <!-- ===================== HOW TO PLAY ===================== -->
+    <div id="howScreen" class="overlay hidden">
+      <div class="panel">
+        <h2>ANLEITUNG</h2>
+        <div class="how-grid">
+          <div class="how-item"><span class="how-dot" style="background:#e8c170"></span>
+            <div><b>Du</b> bist der Studi. Bewege dich mit Pfeiltasten oder <b>W A S D</b>.</div></div>
+          <div class="how-item"><span class="how-dot" style="background:#d7b594"></span>
+            <div><b>CP</b> sammeln bringt 10 Punkte. Alle einsammeln und das Semester ist geschafft.</div></div>
+          <div class="how-item"><span class="how-dot" style="background:#e8c170;box-shadow:0 0 8px #e8c170"></span>
+            <div><b>Freiversuch</b> macht Profs und Klausuren angreifbar. Friss sie für Bonuspunkte.</div></div>
+          <div class="how-item"><span class="how-dot" style="background:#cf573c"></span>
+            <div><b>Profs und Klausuren</b> kosten dich ein Leben, wenn sie dich erwischen. Du hast 3.</div></div>
+          <div class="how-item"><span class="how-dot" style="background:#75a743"></span>
+            <div><b>Bonus</b>: Kaffee, Currywurst und Co. tauchen zwischendurch auf.</div></div>
+        </div>
+        <button class="big-btn close-how">ALLES KLAR</button>
+      </div>
+    </div>
+
+    <!-- ===================== SETTINGS ===================== -->
+    <div id="settingsScreen" class="overlay hidden">
+      <div class="panel">
+        <h2>EINSTELLUNGEN</h2>
+        <div class="setting-row">
+          <label>MUSIK</label>
+          <input type="range" id="musicVol" min="0" max="100" value="45">
+          <button id="musicMute" class="mini-btn" aria-label="Musik stumm"></button>
+        </div>
+        <div class="setting-row">
+          <label>SOUND</label>
+          <input type="range" id="sfxVol" min="0" max="100" value="75">
+          <button id="sfxMute" class="mini-btn" aria-label="Sound stumm"></button>
+        </div>
+        <button class="big-btn close-settings">FERTIG</button>
+      </div>
+    </div>
+
+    <!-- ===================== PAUSE ===================== -->
+    <div id="pauseScreen" class="overlay hidden">
+      <div class="panel">
+        <h2>PAUSE</h2>
+        <div class="setting-row">
+          <label>MUSIK</label>
+          <input type="range" id="pMusicVol" min="0" max="100" value="45">
+          <button id="pMusicMute" class="mini-btn" aria-label="Musik stumm"></button>
+        </div>
+        <div class="setting-row">
+          <label>SOUND</label>
+          <input type="range" id="pSfxVol" min="0" max="100" value="75">
+          <button id="pSfxMute" class="mini-btn" aria-label="Sound stumm"></button>
+        </div>
+        <button id="resumeBtn" class="big-btn">WEITER</button>
+        <button id="quitBtn" class="ghost-btn wide">ZUM HAUPTMENÜ</button>
+      </div>
+    </div>
+
+    <!-- ===================== GAME OVER ===================== -->
+    <div id="gameOverScreen" class="overlay hidden">
+      <div class="panel">
+        <h2 id="gameOverTitle" class="fail">DURCHGEFALLEN</h2>
+        <div class="final-score">DEINE CP: <span id="finalScore">0</span></div>
+
+        <div id="nameEntryWrap">
+          <div class="name-label">TRAG DICH IN DIE BESTENLISTE EIN</div>
+          <input id="nameEntry" type="text" maxlength="12" autocomplete="off" spellcheck="false"
+                 placeholder="DEIN NAME" />
+          <button id="submitScore" class="big-btn">EINTRAGEN</button>
+        </div>
+
+        <div class="board-panel">
+          <div class="board-panel-head">BESTENLISTE</div>
+          <ol id="gameOverLeaderboard" class="lb-list"></ol>
+        </div>
+        <div class="go-actions">
+          <button id="againBtn" class="ghost-btn">NOCHMAL SPIELEN</button>
+          <button id="menuBtn" class="ghost-btn">HAUPTMENÜ</button>
+        </div>
+      </div>
+    </div>
   </div>
 
+  <script src="audio.js"></script>
   <script src="maps.js"></script>
   <script src="entities.js"></script>
   <script src="game.js"></script>

@@ -1,0 +1,15 @@
+{
+  "_comment": "Rename this file to manifest.json and edit it to point at your PNGs. Delete keys you are not overriding. Directional keys (e.g. player_left) are optional and win over the single key when facing that way.",
+
+  "player": "player.png",
+  "player_up": "player_up.png",
+  "player_down": "player_down.png",
+  "player_left": "player_left.png",
+  "player_right": "player_right.png",
+
+  "prof1": "prof1.png",
+  "prof2": "prof2.png",
+
+  "klausur1": "klausur1.png",
+  "klausur2": "klausur2.png"
+}
