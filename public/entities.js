@@ -63,86 +63,126 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// ---- Player: coffee-fuelled student (chomping disc + grad cap) ---------
+// ---- Player: front-facing student ---------------------------------------
 
 function _drawPlayer(ctx, S, dir, frame) {
-  const cx = S / 2, cy = S * 0.52, r = S * 0.38;
-  const angles = { right: 0, left: Math.PI, up: -Math.PI / 2, down: Math.PI / 2 };
-  const base = angles[dir] ?? 0;
-  const open = [0.05, 0.2, 0.36][frame % 3] * Math.PI;
+  const cx = S / 2;
+  // Front-facing student: direction is shown by the eyes only, the mouth
+  // just opens and closes to show eating (no rotating chomp wedge).
 
-  // hoodie hood wrapping the head (student look)
-  ctx.fillStyle = '#c94f3d';                        // warm hoodie
-  ctx.beginPath();
-  ctx.arc(cx, cy + S * 0.05, r * 1.2, 0, Math.PI * 2);
+  // hoodie shoulders + chest
+  ctx.fillStyle = '#c94f3d';
+  roundRectPath(ctx, cx - S * 0.36, S * 0.72, S * 0.72, S * 0.26, S * 0.09);
   ctx.fill();
-  ctx.strokeStyle = '#7e2f24';                      // hood outline
-  ctx.lineWidth = Math.max(1, S * 0.022);
+  ctx.strokeStyle = '#7e2f24';
+  ctx.lineWidth = Math.max(1, S * 0.02);
   ctx.stroke();
-  // hood drawstrings
-  ctx.strokeStyle = '#e7d5b3';
-  ctx.lineWidth = Math.max(1, S * 0.03);
+  // collar notch + drawstrings
+  ctx.fillStyle = '#a03a2b';
   ctx.beginPath();
-  ctx.moveTo(cx - r * 0.35, cy + r * 0.9); ctx.lineTo(cx - r * 0.28, cy + r * 1.25);
-  ctx.moveTo(cx + r * 0.35, cy + r * 0.9); ctx.lineTo(cx + r * 0.28, cy + r * 1.25);
-  ctx.stroke();
-
-  // face (chomping)
-  const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.35, r * 0.2, cx, cy, r);
-  grad.addColorStop(0, '#ffe0a8');
-  grad.addColorStop(0.7, '#f0c07a');
-  grad.addColorStop(1, '#d69a4e');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, r, base + open, base + Math.PI * 2 - open);
+  ctx.moveTo(cx - S * 0.11, S * 0.72);
+  ctx.lineTo(cx, S * 0.8);
+  ctx.lineTo(cx + S * 0.11, S * 0.72);
   ctx.closePath();
   ctx.fill();
-  ctx.lineWidth = Math.max(1, S * 0.022);
-  ctx.strokeStyle = '#b07d38';
+  ctx.strokeStyle = '#e7d5b3';
+  ctx.lineWidth = Math.max(1, S * 0.025);
+  ctx.beginPath();
+  ctx.moveTo(cx - S * 0.07, S * 0.79); ctx.lineTo(cx - S * 0.08, S * 0.92);
+  ctx.moveTo(cx + S * 0.07, S * 0.79); ctx.lineTo(cx + S * 0.08, S * 0.92);
   ctx.stroke();
 
-  // dark mouth wedge inside the chomp so the bite reads against the hood
-  if (open > 0.06) {
-    ctx.fillStyle = '#4a1812';
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.arc(cx, cy, r * 0.94, base - open, base + open);
-    ctx.closePath();
-    ctx.fill();
-  }
+  // head
+  const hr = S * 0.3;
+  const hy = S * 0.44;
+  const grad = ctx.createRadialGradient(cx - hr * 0.3, hy - hr * 0.3, hr * 0.2, cx, hy, hr * 1.1);
+  grad.addColorStop(0, '#f6d3a4');
+  grad.addColorStop(1, '#e0ac74');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, hy, hr, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(90,58,30,0.5)';
+  ctx.lineWidth = Math.max(1, S * 0.018);
+  ctx.stroke();
 
-  // short hair fringe peeking from the hood (skip facing up)
-  if (dir !== 'up') {
-    ctx.fillStyle = '#3a2716';
-    ctx.beginPath();
-    ctx.moveTo(cx - r * 0.62, cy - r * 0.5);
-    for (let i = 0; i <= 4; i++) {
-      const x = cx + (i / 4 - 0.5) * r * 1.15;
-      ctx.lineTo(x, cy - r * (i % 2 === 0 ? 0.82 : 0.66));
-      ctx.lineTo(x + r * 0.13, cy - r * 0.55);
-    }
-    ctx.lineTo(cx + r * 0.62, cy - r * 0.5);
-    ctx.closePath();
-    ctx.fill();
-  }
-
-  // round glasses biased toward the facing side
-  const gb = { right: 0.16, left: -0.16, up: 0, down: 0 }[dir] || 0;
-  const gy = cy - r * 0.1;
-  ctx.strokeStyle = '#2b2018';
-  ctx.lineWidth = Math.max(1, S * 0.028);
+  // ears
+  ctx.fillStyle = '#e8bc8a';
   for (const s of [-1, 1]) {
-    const ex = cx + gb * r + s * r * 0.33;
+    ctx.beginPath();
+    ctx.ellipse(cx + s * hr * 0.98, hy + hr * 0.05, S * 0.04, S * 0.055, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // messy hair: cap over the crown with a jagged fringe
+  ctx.fillStyle = '#4a2f1e';
+  ctx.beginPath();
+  ctx.moveTo(cx - hr, hy - hr * 0.05);
+  ctx.quadraticCurveTo(cx - hr * 1.08, hy - hr * 1.05, cx, hy - hr * 1.16);
+  ctx.quadraticCurveTo(cx + hr * 1.08, hy - hr * 1.05, cx + hr, hy - hr * 0.05);
+  for (let i = 0; i <= 5; i++) {
+    const x = cx + hr - (i / 5) * 2 * hr;
+    ctx.lineTo(x, hy - hr * (i % 2 === 0 ? 0.42 : 0.6));
+  }
+  ctx.closePath();
+  ctx.fill();
+  // stray tuft
+  ctx.beginPath();
+  ctx.moveTo(cx + hr * 0.35, hy - hr * 1.1);
+  ctx.quadraticCurveTo(cx + hr * 0.75, hy - hr * 1.45, cx + hr * 0.95, hy - hr * 1.05);
+  ctx.quadraticCurveTo(cx + hr * 0.7, hy - hr * 1.1, cx + hr * 0.5, hy - hr * 0.95);
+  ctx.closePath();
+  ctx.fill();
+
+  // headphones: band over the hair, cups on the ears
+  ctx.strokeStyle = '#2b3940';
+  ctx.lineWidth = Math.max(1.5, S * 0.045);
+  ctx.beginPath();
+  ctx.arc(cx, hy, hr * 1.16, Math.PI * 1.12, Math.PI * 1.88);
+  ctx.stroke();
+  ctx.fillStyle = '#2b3940';
+  for (const s of [-1, 1]) {
+    roundRectPath(ctx, cx + s * hr * 1.05 - S * 0.045, hy - S * 0.06, S * 0.09, S * 0.13, S * 0.03);
+    ctx.fill();
+  }
+
+  // glasses; the pupils look where the student is heading
+  const look = { right: [0.13, 0], left: [-0.13, 0], up: [0, -0.11], down: [0, 0.11] }[dir] || [0, 0.04];
+  const ey = hy - hr * 0.08;
+  for (const s of [-1, 1]) {
+    const ex = cx + s * hr * 0.44;
     ctx.fillStyle = '#ffffff';
-    ctx.beginPath(); ctx.arc(ex, gy, r * 0.22, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ex, ey, hr * 0.3, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#10141f';
-    ctx.beginPath(); ctx.arc(ex + gb * r * 0.4, gy, r * 0.09, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex + look[0] * hr, ey + look[1] * hr, hr * 0.13, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#2b2018';
+    ctx.lineWidth = Math.max(1, S * 0.026);
+    ctx.beginPath(); ctx.arc(ex, ey, hr * 0.34, 0, Math.PI * 2); ctx.stroke();
   }
   ctx.beginPath();
-  ctx.moveTo(cx + gb * r - r * 0.11, gy);
-  ctx.lineTo(cx + gb * r + r * 0.11, gy);
-  ctx.stroke();
+  ctx.moveTo(cx - hr * 0.1, ey); ctx.lineTo(cx + hr * 0.1, ey); ctx.stroke();
+
+  // mouth: closed smile at rest, chomping open/shut while eating
+  const openAmt = [0.1, 0.55, 1][frame % 3];
+  const my = hy + hr * 0.52;
+  if (openAmt < 0.2) {
+    ctx.strokeStyle = '#7a4a2a';
+    ctx.lineWidth = Math.max(1, S * 0.024);
+    ctx.beginPath();
+    ctx.arc(cx, my - hr * 0.16, hr * 0.24, 0.25 * Math.PI, 0.75 * Math.PI);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#4a1812';
+    ctx.beginPath();
+    ctx.ellipse(cx, my, hr * 0.26, hr * 0.3 * openAmt, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (openAmt > 0.8) {
+      ctx.fillStyle = '#c9573c';                     // tongue on the wide frame
+      ctx.beginPath();
+      ctx.ellipse(cx, my + hr * 0.14, hr * 0.14, hr * 0.09, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 // ---- Professors: floating Einstein-style heads (no ghost body) ---------

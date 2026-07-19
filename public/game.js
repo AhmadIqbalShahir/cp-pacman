@@ -422,7 +422,9 @@ function updatePlaying(dt) {
   player.moving = !!player.dir;
   if (player.moving) {
     player.animTimer += dt;
-    if (player.animTimer > 0.06) { player.animTimer = 0; player.animFrame = (player.animFrame + 1) % 3; }
+    if (player.animTimer > 0.08) { player.animTimer = 0; player.animFrame = (player.animFrame + 1) % 3; }
+  } else {
+    player.animFrame = 0;                        // mouth closes when standing still
   }
 
   // pellet pickup
