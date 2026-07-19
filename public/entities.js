@@ -459,30 +459,50 @@ function getEnemySprite(type, dir, frame, stateKey, size) {
 // ---- pellets -----------------------------------------------------------
 
 function drawCpPellet(ctx, cx, cy, size, pulse) {
-  const r = size * 0.1 * (1 + 0.1 * Math.sin(pulse));
-  ctx.save();
-  ctx.fillStyle = '#d7b594';
+  // little gold CP coin: dark under-rim gives it a hint of thickness
+  const r = size * 0.11 * (1 + 0.08 * Math.sin(pulse));
+  ctx.fillStyle = '#7a4a1a';
+  ctx.beginPath();
+  ctx.arc(cx, cy + r * 0.3, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#e8c170';
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#ebede9';
+  ctx.fillStyle = '#f8ecc9';
   ctx.beginPath();
-  ctx.arc(cx - r * 0.25, cy - r * 0.25, r * 0.5, 0, Math.PI * 2);
+  ctx.arc(cx - r * 0.28, cy - r * 0.28, r * 0.4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.restore();
 }
 
 function drawPowerPellet(ctx, cx, cy, size, pulse) {
   const r = size * 0.32 * (1 + 0.08 * Math.sin(pulse * 2));
+
+  // expanding halo ring so power pellets read from across the room
+  const wave = (pulse * 0.45) % 1;
+  ctx.save();
+  ctx.globalAlpha = 0.4 * (1 - wave);
+  ctx.strokeStyle = '#e8c170';
+  ctx.lineWidth = Math.max(1, size * 0.06 * (1 - wave * 0.5));
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * (0.9 + wave * 1.2), 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
   ctx.save();
   ctx.translate(cx, cy);
+  // grounding shadow under the seal
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(0, r * 0.55, r * 0.8, r * 0.25, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.rotate(pulse * 0.3);
-  ctx.shadowColor = 'rgba(232,193,112,0.55)';
-  ctx.shadowBlur = size * 0.28;
-  // Freiversuch seal: gently scalloped stamp
+  ctx.shadowColor = 'rgba(232,193,112,0.8)';
+  ctx.shadowBlur = size * 0.4;
+  // Freiversuch seal: scalloped stamp with a lighter inner face
+  const spikes = 10;
   ctx.fillStyle = '#e8c170';
   ctx.beginPath();
-  const spikes = 10;
   for (let i = 0; i < spikes * 2; i++) {
     const ang = (Math.PI / spikes) * i;
     const rad = (i % 2 === 0) ? r : r * 0.82;
@@ -491,11 +511,20 @@ function drawPowerPellet(ctx, cx, cy, size, pulse) {
   ctx.closePath();
   ctx.fill();
   ctx.shadowBlur = 0;
+  ctx.fillStyle = '#f2d99a';
+  ctx.beginPath();
+  for (let i = 0; i < spikes * 2; i++) {
+    const ang = (Math.PI / spikes) * i;
+    const rad = ((i % 2 === 0) ? r : r * 0.82) * 0.78;
+    ctx.lineTo(Math.cos(ang) * rad, Math.sin(ang) * rad);
+  }
+  ctx.closePath();
+  ctx.fill();
   ctx.rotate(-pulse * 0.3);
   ctx.strokeStyle = '#4d2b32';
   ctx.lineWidth = Math.max(1, size * 0.03);
   ctx.beginPath();
-  ctx.arc(0, 0, r * 0.6, 0, Math.PI * 2);
+  ctx.arc(0, 0, r * 0.58, 0, Math.PI * 2);
   ctx.stroke();
   ctx.fillStyle = '#4d2b32';
   ctx.font = `bold ${Math.floor(size * 0.3)}px "Press Start 2P", monospace`;
@@ -594,32 +623,73 @@ function prerenderMaze(grid, map, rtile, rows, cols) {
   c.height = rows * rtile;
   const ctx = c.getContext('2d');
   const isWall = (r, cc) => (r >= 0 && r < rows && cc >= 0 && cc < cols && grid[r][cc] === '#');
-  const R = rtile * 0.34;                 // gentle corner rounding
+  const R = rtile * 0.32;
   const inset = rtile * 0.06;
+  const depth = rtile * 0.24;             // 2.5D extrusion height
 
-  // flat matte walls
-  ctx.fillStyle = map.wall;
+  // faint checkerboard on the corridor floor for depth
+  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  for (let r = 0; r < rows; r++) {
+    for (let cc = 0; cc < cols; cc++) {
+      if (grid[r][cc] === '#' || (r + cc) % 2 === 0) continue;
+      ctx.fillRect(cc * rtile, r * rtile, rtile, rtile);
+    }
+  }
+
+  const tilePath = (r, cc, dy) => {
+    const up = isWall(r - 1, cc), dn = isWall(r + 1, cc), lf = isWall(r, cc - 1), rt = isWall(r, cc + 1);
+    _cornerRectPath(ctx, cc * rtile + inset, r * rtile + inset + dy,
+      rtile - inset * 2, rtile - inset * 2,
+      (up || lf) ? 0 : R, (up || rt) ? 0 : R, (dn || rt) ? 0 : R, (dn || lf) ? 0 : R);
+  };
+
+  // pass 1: contact shadow under the blocks
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = rtile * 0.22;
+  ctx.shadowOffsetY = rtile * 0.14;
+  ctx.fillStyle = map.wallFace || map.wallInner;
+  for (let r = 0; r < rows; r++)
+    for (let cc = 0; cc < cols; cc++)
+      if (grid[r][cc] === '#') { tilePath(r, cc, depth); ctx.fill(); }
+  ctx.restore();
+
+  // pass 2: extruded front/side faces, stepped so rounded corners stay smooth
+  ctx.fillStyle = map.wallFace || map.wallInner;
+  for (const step of [depth, depth * 0.66, depth * 0.33]) {
+    for (let r = 0; r < rows; r++)
+      for (let cc = 0; cc < cols; cc++)
+        if (grid[r][cc] === '#') { tilePath(r, cc, step); ctx.fill(); }
+  }
+
+  // pass 3: lit top faces with a vertical falloff
   for (let r = 0; r < rows; r++) {
     for (let cc = 0; cc < cols; cc++) {
       if (grid[r][cc] !== '#') continue;
-      const up = isWall(r - 1, cc), dn = isWall(r + 1, cc), lf = isWall(r, cc - 1), rt = isWall(r, cc + 1);
-      _cornerRectPath(ctx, cc * rtile + inset, r * rtile + inset, rtile - inset * 2, rtile - inset * 2,
-        (up || lf) ? 0 : R, (up || rt) ? 0 : R, (dn || rt) ? 0 : R, (dn || lf) ? 0 : R);
+      const y = r * rtile;
+      const g = ctx.createLinearGradient(0, y, 0, y + rtile);
+      g.addColorStop(0, map.wallHi || map.wall);
+      g.addColorStop(0.45, map.wall);
+      g.addColorStop(1, map.wall);
+      ctx.fillStyle = g;
+      tilePath(r, cc, 0);
       ctx.fill();
     }
   }
 
-  // thin subtle border on exposed edges only (keeps it calm, not chunky)
+  // pass 4: crisp highlight along top edges that face the light
   ctx.strokeStyle = map.wallHi || map.wall;
-  ctx.globalAlpha = 0.5;
-  ctx.lineWidth = Math.max(1, rtile * 0.05);
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = Math.max(1, rtile * 0.055);
   for (let r = 0; r < rows; r++) {
     for (let cc = 0; cc < cols; cc++) {
       if (grid[r][cc] !== '#') continue;
-      const up = isWall(r - 1, cc), dn = isWall(r + 1, cc), lf = isWall(r, cc - 1), rt = isWall(r, cc + 1);
-      if (up && dn && lf && rt) continue;   // fully enclosed tile needs no border
-      _cornerRectPath(ctx, cc * rtile + inset, r * rtile + inset, rtile - inset * 2, rtile - inset * 2,
-        (up || lf) ? 0 : R, (up || rt) ? 0 : R, (dn || rt) ? 0 : R, (dn || lf) ? 0 : R);
+      if (isWall(r - 1, cc)) continue;
+      const lf = isWall(r, cc - 1), rt = isWall(r, cc + 1);
+      const x = cc * rtile, y = r * rtile + inset + rtile * 0.04;
+      ctx.beginPath();
+      ctx.moveTo(x + (lf ? 0 : R + inset), y);
+      ctx.lineTo(x + rtile - (rt ? 0 : R + inset), y);
       ctx.stroke();
     }
   }
