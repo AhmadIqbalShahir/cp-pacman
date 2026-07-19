@@ -116,16 +116,16 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .game-sub {
   font-family: var(--font-arcade);
-  font-size: clamp(9px, 1.5vw, 12px);
+  font-size: clamp(11px, 1.8vw, 14px);
   color: var(--teal);
   letter-spacing: 4px;
   margin: 12px 0 16px;
 }
 .tagline {
   font-family: var(--font-arcade);
-  font-size: 10px; line-height: 2; letter-spacing: 1px;
+  font-size: 13px; line-height: 2; letter-spacing: 1px;
   color: var(--muted);
-  max-width: 520px; margin-bottom: 22px;
+  max-width: 620px; margin-bottom: 22px;
 }
 .tagline b { color: var(--gold); font-weight: normal; }
 
@@ -167,7 +167,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .menu-row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; justify-content: center; }
 .ghost-btn {
   font-family: var(--font-arcade);
-  font-size: 10px; letter-spacing: 1px;
+  font-size: 11px; letter-spacing: 1px;
   color: var(--text);
   background: transparent;
   border: 2px solid var(--line);
@@ -195,15 +195,15 @@ body { display: flex; align-items: center; justify-content: center; }
 .lb-list li {
   display: flex; align-items: center; justify-content: space-between;
   font-family: var(--font-arcade);
-  font-size: 11px; line-height: 1;
-  padding: 7px 10px; border-radius: 6px;
+  font-size: 13px; line-height: 1;
+  padding: 8px 10px; border-radius: 6px;
 }
-.lb-list li .rank { color: var(--muted); margin-right: 10px; font-size: 9px; min-width: 26px; }
+.lb-list li .rank { color: var(--muted); margin-right: 10px; font-size: 11px; min-width: 28px; }
 .lb-list li .nm { flex: 1; letter-spacing: 1px; }
 .lb-list li .sc { color: var(--teal); }
 .lb-list li.top3 { background: rgba(232,193,112,0.08); }
 .lb-list li.top3 .sc { color: var(--gold); }
-.lb-empty { justify-content: center !important; color: var(--muted); text-transform: uppercase; font-size: 9px !important; }
+.lb-empty { justify-content: center !important; color: var(--muted); text-transform: uppercase; font-size: 11px !important; }
 
 /* top-3 medals */
 .medal {
@@ -224,13 +224,13 @@ body { display: flex; align-items: center; justify-content: center; }
 .credit {
   position: relative; z-index: 2; margin-top: 22px;
   font-family: var(--font-arcade);
-  font-size: 8px; color: var(--muted); letter-spacing: 1px;
+  font-size: 10px; color: var(--muted); letter-spacing: 1px;
 }
 
 /* ---------- panel (settings/pause/how/controls/gameover) ---------- */
 .panel {
   position: relative; z-index: 2;
-  width: min(480px, 92vw);
+  width: min(560px, 92vw);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -250,7 +250,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .setting-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .setting-row label {
   flex: 0 0 120px; text-align: left;
-  font-family: var(--font-arcade); font-size: 10px; letter-spacing: 1px; color: var(--muted);
+  font-family: var(--font-arcade); font-size: 11px; letter-spacing: 1px; color: var(--muted);
 }
 .setting-row input[type=range] {
   flex: 1; -webkit-appearance: none; appearance: none;
@@ -277,7 +277,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .how-item {
   display: flex; gap: 14px; align-items: center;
   font-family: var(--font-arcade);
-  font-size: 9px; line-height: 1.9; letter-spacing: 0.5px;
+  font-size: 12px; line-height: 1.9; letter-spacing: 0.5px;
   color: var(--text);
 }
 .how-icon {
@@ -307,13 +307,13 @@ body { display: flex; align-items: center; justify-content: center; }
 .key-or { font-family: var(--font-arcade); font-size: 10px; color: var(--muted); }
 .controls-note {
   font-family: var(--font-arcade);
-  font-size: 9px; line-height: 2; letter-spacing: 1px;
+  font-size: 12px; line-height: 2; letter-spacing: 1px;
   color: var(--muted); margin-bottom: 12px;
 }
 .controls-note b { color: var(--gold); font-weight: normal; }
 .controls-hint {
   font-family: var(--font-arcade);
-  font-size: 8px; letter-spacing: 1px;
+  font-size: 10px; letter-spacing: 1px;
   color: var(--muted); margin-bottom: 22px;
 }
 
@@ -322,7 +322,7 @@ body { display: flex; align-items: center; justify-content: center; }
 #finalScore { color: var(--text); }
 .name-label {
   font-family: var(--font-arcade);
-  font-size: 9px; color: var(--muted);
+  font-size: 11px; color: var(--muted);
   margin-bottom: 12px; letter-spacing: 1px; text-transform: uppercase;
 }
 #nameEntryWrap { margin-bottom: 8px; }
@@ -359,7 +359,7 @@ body { display: flex; align-items: center; justify-content: center; }
 .pick-slot.active::after { bottom: -12px; border-top-color: var(--gold); }
 .picker-hint {
   font-family: var(--font-arcade);
-  font-size: 7px; color: var(--muted);
+  font-size: 9px; color: var(--muted);
   letter-spacing: 1px; margin-bottom: 12px;
 }
 
@@ -379,7 +379,7 @@ body { display: flex; align-items: center; justify-content: center; }
 }
 .qr-text {
   font-family: var(--font-arcade);
-  font-size: 8px; line-height: 2;
+  font-size: 10px; line-height: 2;
   color: var(--muted); text-align: left; letter-spacing: 1px;
 }
 
