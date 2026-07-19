@@ -104,76 +104,193 @@ maze layout format, the leaderboard API contract, atomic file writes, the
 installer script behavior, and the README content requirements.
 
 
-PART 1B: REVAMP (post-review polish pass)
+PART 1B: REVAMP HISTORY AND CURRENT STATE
 ================================================================================
 
-After the first working build, the game was revamped for a more polished,
-"complete-game" feel and to fix feedback that it read as generic/AI-made and
-did not look enough like a parody. All of the following is now in the repo.
+After the first working build the game went through several review-driven
+passes (polish, parody sharpening, bug fixing, and a final look overhaul).
+This section describes the game AS IT IS NOW; where it contradicts Part 1 or
+the original spec in Part 2, this section wins. Deviations from the spec are
+listed at the end.
 
-DESIGN SYSTEM -- one deliberate, human-authored reference
+IDENTITY AND COPY
 --------------------------------------------------------------------------------
-- The entire game is anchored to the APOLLO palette (by AdamCYounis,
-  lospec.com/palette-list/apollo) -- warm golds/terracotta plus muted teal
-  and green. This replaced the earlier generic neon-blue/purple gradients and
-  is applied consistently to walls, sprites, pellets, HUD and every UI panel.
-- Typography is now uniform ("einheitlich"): exactly two fonts, used by role.
-  Press Start 2P for headings/HUD/labels; VT323 (bundled at
-  public/assets/fonts/VT323.woff2) for all body/UI text. The mismatched
-  system-ui sans is gone. Both fonts are local -- no CDN, still offline-safe.
-- No emojis anywhere. Bonus items (Kaffee, Currywurst, Bib-Buch) are drawn as
-  vector icons on canvas; the pause and speaker/mute controls are inline SVG;
-  decorative emoji in labels were removed.
-- Walls are rendered as solid, corner-aware rounded bars with depth and a lit
-  top edge (a designed look) instead of the earlier neon "donut" tubes.
-- Stronger parody: chomping student with a graduation cap, Professors in
-  blazers with glasses (red + navy), Klausur exam-sheets stamped "5,0", the
-  Freiversuch stamp power-up, and German flavour text throughout
-  (DURCHGEFALLEN on death, SEMESTER GESCHAFFT on board clear, BESTANDEN when
-  eating an enemy).
+- Title: CP-PACMAN, subtitle CAMPUS-JAGD. The earlier "Messe Edition" name
+  and the "fuer den Messestand" footer line were removed as too on-the-nose.
+- All user-facing text is German, written in plain sentences with no em
+  dashes and no emojis anywhere in the game.
+- Parody flavour text throughout: DURCHGEFALLEN on game over, BACHELOR
+  GESCHAFFT on winning, GESCHAFFT / NAECHSTES LEVEL on board clear,
+  BESTANDEN +points when eating an enemy, +1 LEBEN on the extra life.
 
-NEW SYSTEMS & FEATURES
+VISUAL DESIGN SYSTEM
 --------------------------------------------------------------------------------
-- Sound: public/audio.js -- a fully procedural Web Audio engine. SFX (chomp,
-  power pellet, eat-prof arpeggio, death, bonus, menu, start/board-clear
-  jingles) plus a looping chiptune background track. Independent SFX and music
-  volume sliders + mute toggles, persisted to localStorage. No audio files are
-  shipped, so the booth stays offline.
-- HTML overlay UI (replaces the old canvas-drawn menus): an animated title
-  screen, a Settings panel (music/SFX sliders + mute), a Pause menu (also with
-  sound controls), an Anleitung/how-to screen, and a Game-Over/leaderboard
-  screen -- all styled with the shared design system.
-- Controls intro: a "STEUERUNG" card with drawn key-caps (arrow keys + WASD)
-  is shown at the start of each game before the round begins.
-- Pause: a pause button (top-right) and the P / Esc keys, with a resume + quit
-  menu. A quick mute button sits next to it during play.
-- Movement was rewritten to continuous tile coordinates with instant reversal
-  and responsive cornering, fixing the earlier "wanky" tile-snap feel.
-- In-round polish: staggered "READY?" countdown, a 2nd-and-later bonus item
-  that appears mid-board, particle bursts and floating score text, and a
-  death spin animation.
+- Colour is anchored to the APOLLO palette (AdamCYounis,
+  lospec.com/palette-list/apollo) across walls, sprites, pellets, HUD and UI.
+- Typography is uniform: Press Start 2P for headings/HUD/labels, VT323 for
+  body/UI text. Both bundled locally (public/assets/fonts/), no CDN.
+- Maze look (current): VIBRANT 2.5D. Walls are extruded blocks with lit top
+  faces (vertical light falloff), darker stepped front faces, contact
+  shadows, and a crisp highlight along light-facing top edges. Corridors
+  have a faint checkerboard so the floor reads as a surface. Per-level
+  palettes: amber PK 4.7, verdant green Mensa, violet Altgebaeude. (This
+  supersedes the interim neon-tube and soft-minimal looks.)
+- A soft vignette darkens the board edges, and a thin accent frame in the
+  level colour surrounds the play area.
+- CP pellets are small gold coins (dark under-rim for thickness, shine spot,
+  gentle pulse). The Freiversuch power-up is a scalloped gold stamp seal
+  with a lighter inner face, a grounding shadow, and an expanding halo ring
+  so it reads from across a booth.
 
-BUGS FOUND & FIXED WHILE TESTING THE REVAMP
+CHARACTERS (all drawn procedurally on canvas, no image files)
 --------------------------------------------------------------------------------
-- Enemies could get stuck inside the ghost house (greedy AI alone cannot
-  navigate the narrow exit gap). Added scripted house-exit steering plus a
-  one-way door so enemies leave and roam the maze, while eaten "eyes" can
-  still return home to respawn.
-- The controls intro overlay initially did not appear (it was missing from the
+- Player: a FRONT-FACING student. Messy brown hair with a stray tuft,
+  headphones (band over the hair, cups on the ears), round glasses, red
+  hoodie with collar and drawstrings. Direction is shown by the pupils
+  only; the mouth simply opens and closes while eating (closed smile, half
+  open, wide open with tongue) and closes when standing still. There is no
+  rotating Pac-Man wedge.
+- Professors: floating Einstein-style HEADS with no ghost silhouette. Wild
+  white hair, bushy eyebrows above big round glasses with temple arms,
+  moustache, cheek blush, thin head outline, and suit shoulders with an
+  accent bow tie (red = Prof 1, blue = Prof 2; Prof 2 also has a full white
+  beard). Pupils track their movement direction.
+- Klausuren: walking exam sheets with a folded corner, ruled lines, a
+  red-pen-circled "5,0" grade, googly eyes peeking over the top edge, and
+  little legs (red header = Klausur 1, green header = Klausur 2).
+- Frightened state: blue panicked variants (flashing white near the end);
+  eaten state: eyes only, returning home to respawn.
+- In-game grounding: every actor casts a soft shadow and enemies bob gently
+  out of phase. The title screen shows a bobbing "cast row" of all five
+  characters, generated live from the same sprites.
+- Asset import: users can override any character with their own PNGs by
+  dropping files into public/assets/sprites/ and listing them in
+  manifest.json (keys: player, prof1, prof2, klausur1, klausur2, each with
+  optional _up/_down/_left/_right variants). Missing manifest = drawn
+  characters, no error. See the README.txt in that folder.
+
+BOARDS AND GAME STRUCTURE
+--------------------------------------------------------------------------------
+- Three boards (PK 4.7 amber, Mensa green, Altgebaeude violet), regenerated
+  so every board is symmetric, fully connected, and has ZERO dead ends
+  (verified by generator BFS before being baked into maps.js).
+- The game is a fixed 3-LEVEL run: clear all three and you win (BACHELOR
+  GESCHAFFT, green, into the leaderboard flow). The HUD shows LEVEL n/3.
+- 8 Freiversuch seals per board (4 corner + 4 mid-edge, symmetric).
+  Frightened window starts at 9s, shrinks 0.4s per pellet, floor 4s.
+- Bonus items (Kaffee 300 / Currywurst 500 / Bib-Buch 700, one icon per
+  level) spawn every 60 pellets eaten at a RANDOM corridor tile at least 8
+  tiles from the player, announced with a floating label, one at a time,
+  9s lifetime. Roughly 8 varied spawns per board.
+- Extra life: +1 LEBEN once per game at 5000 CP, with jingle.
+
+ENEMY AI (current behaviour)
+--------------------------------------------------------------------------------
+- Classic scatter/chase wave clock: 6s scatter / 18s chase / 6 / 18 / 4 /
+  then chase forever. During scatter each enemy retreats to its own corner;
+  on every phase switch all enemies reverse direction. The wave clock
+  pauses during Freiversuch, like the original.
+- Archetypes: Prof 1 direct chase; Prof 2 ambush (4 tiles ahead of the
+  player's heading); Klausur 1 semi-random pursuit (only erratic while
+  chasing, orderly during scatter); Klausur 2 shy (chases beyond 8 tiles,
+  retreats to its maze corner when closer).
+- "Elroy": once a board is nearly cleared (under 50 pellets), Prof 1 stops
+  scattering and speeds up, with a second bump under 20 pellets.
+- Enemies traverse the tunnel at 60% speed, making it a real escape route.
+- Release timings are tight (0 / 1.5 / 3 / 4.5s), all four out by ~4.5s.
+- Pathing rules that keep the AI sane: fixed-tile targets (scatter corners,
+  shy retreat) use true shortest-path BFS steps, because stepwise greedy
+  distance can orbit small tile rings forever. Moving player-based targets
+  use classic greedy at intersections (imperfect pursuit is intended).
+  Eaten eyes BFS to the tile above the house door, then drop through the
+  one-way door to respawn. The player cannot enter the house.
+
+SOUND (public/audio.js, fully procedural Web Audio, no audio files)
+--------------------------------------------------------------------------------
+- SFX: chomp, upbeat Freiversuch fanfare with sub thump, eat-prof arpeggio,
+  bonus, death sweep, extra-life jingle, start and board-clear jingles,
+  menu blips, pause/unpause.
+- Freiversuch tension: while the window runs, a pulse beats faster and
+  higher-pitched as time runs out, and the background music ducks so the
+  countdown reads clearly. Pairs with a draining countdown bar in the HUD
+  that flashes red in the last 2 seconds.
+- Looping chiptune background track (bass, arpeggio, lead, hat) via a
+  lookahead scheduler. Music and SFX have independent volume sliders and
+  mutes (title Settings panel, Pause menu, and a quick mute during play),
+  persisted to localStorage.
+
+UI AND SCREENS
+--------------------------------------------------------------------------------
+- HTML overlays styled by the shared design system: animated title screen
+  (logo, cast row, leaderboard), STEUERUNG controls intro with drawn
+  key-caps shown at every game start, Anleitung screen, Settings, Pause
+  (P / Esc or button; includes sound controls, resume, quit to menu), and
+  Game Over with name entry.
+- Game Over: EINTRAGEN only saves when a name is entered; NOCHMAL SPIELEN
+  and HAUPTMENUE buttons always available; 30s idle timeout returns to the
+  title screen for unattended booth operation.
+- Leaderboard shows gold/silver/bronze medals for the top 3.
+- HUD: CP score with REKORD (session best) under it, level name + LEVEL n/3
+  + subtitle centred, lives as mini student icons, Freiversuch countdown
+  bar along the bottom edge while active.
+- Feinheiten: ready banner counts down (START IN 2..1), board-clear wall
+  flash, banner pulse, bonus pop-in animation, hit-stop and particle burst
+  when eating an enemy, screen shake + burst + spin on death, floating
+  score text, visible ghost-house door bar, pulsing tunnel chevrons at the
+  wrap exits.
+
+LEADERBOARD (deviates from the original spec BY USER REQUEST)
+--------------------------------------------------------------------------------
+The leaderboard is SESSION-ONLY. Scores live in the server's memory for the
+current run; restarting or reopening the server (or laptop) starts with an
+empty board. Nothing is written to disk, there is no data/ directory, and
+the API surface (GET/POST /api/leaderboard, top 10, alphanumeric 12-char
+names, localhost-only binding) is otherwise unchanged.
+
+NOTABLE BUGS FOUND AND FIXED ALONG THE WAY
+--------------------------------------------------------------------------------
+- Enemies stuck inside the ghost house: greedy AI cannot navigate the
+  narrow exit. Fixed with scripted exit steering plus a one-way door.
+- Eaten "eyes" stuck below the house: greedy distance-to-home strands them
+  where every step toward the door looks farther. Fixed with BFS routing;
+  verified from 15 spots across all three levels.
+- Shy Klausur orbiting in front of the door: its retreat targeted the home
+  tile INSIDE the one-way house, which it could never reach. It now
+  retreats to its maze corner (plus the BFS rule above).
+- Player could walk into the ghost house and get trapped. The house is now
+  one-way for the player too (blocked entirely).
+- Bonus items spawned twice per board at one fixed tile; now random and
+  frequent (see above).
+- The controls intro overlay initially did not appear (missing from the
   overlay-manager list). Fixed.
 
 TESTING NOTES
 --------------------------------------------------------------------------------
-Verified: title/controls/settings/pause/game-over screens; smooth movement
-(continuous motion, instant reversal, cornering); pellet scoring; enemy
-release, house-exit and roaming; power pellet / frightened / eaten states;
-collision, life loss and reset; board render; and a live leaderboard POST/GET
-round-trip (an entry was submitted through the UI, confirmed on disk, then the
-file was reset to { "entries": [] }).
+Every pass was verified live in the browser: all screens and flows, smooth
+movement (instant reversal, cornering), scatter/chase transitions and enemy
+spread, Freiversuch (bar, tension audio, chain scoring), eaten-return from
+all corners of all three boards, bonus spawn variety, session-only
+leaderboard round-trip (score present during session, gone after server
+restart), the 3-level win path, and clean consoles with no errors.
 
 Note on framerate: browsers throttle requestAnimationFrame when a tab is
 hidden/backgrounded. On the booth (a normal visible/kiosk window) the game
 runs at full framerate; that is the intended environment.
+
+DEVIATIONS FROM THE PART 2 SPEC (current, intentional)
+--------------------------------------------------------------------------------
+- Sprites/tilesets are drawn procedurally on canvas instead of shipped as
+  per-frame PNGs (spec 6.4); an optional PNG import system exists instead.
+- The leaderboard is in-memory/session-only instead of disk-persistent
+  (spec 8), by explicit user decision. data/leaderboard.json no longer
+  exists.
+- The game ends in a win after 3 cleared boards instead of looping forever
+  (spec 4.2), and the player is a front-facing character rather than a
+  rotating chomp disc.
+- 8 power pellets per board instead of 2-4 (spec 4.2); frightened timing is
+  9s -> 4s floor instead of 8s -> 3s (spec 4.4); enemy release is
+  0/1.5/3/4.5s instead of 0/3/6/9s (spec 5).
+- Title copy is CP-PACMAN / CAMPUS-JAGD rather than "Messe Edition".
 
 
 PART 2: ORIGINAL TECH SPEC (as supplied, verbatim)
