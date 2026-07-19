@@ -654,8 +654,8 @@ function prerenderMaze(grid, map, rtile, rows, cols) {
   const inset = rtile * 0.06;
   const depth = rtile * 0.24;             // 2.5D extrusion height
 
-  // faint checkerboard on the corridor floor for depth
-  ctx.fillStyle = 'rgba(255,255,255,0.025)';
+  // checkerboard on the corridor floor for depth
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
   for (let r = 0; r < rows; r++) {
     for (let cc = 0; cc < cols; cc++) {
       if (grid[r][cc] === '#' || (r + cc) % 2 === 0) continue;
