@@ -558,8 +558,10 @@ function startAttract() {
 
 function exitAttract() {
   attract = false;
-  AudioEngine.sfx.menuSelect();
-  startGame();
+  AudioEngine.sfx.menuMove();
+  state = 'title';
+  fetchLeaderboard();
+  showOverlay('titleScreen');
 }
 
 // ---- particles / floaters -------------------------------------------
@@ -1098,7 +1100,7 @@ function drawHud() {
   ctx.fillStyle = '#fff2c2';
   ctx.fillText(String(score), 16, 33);
   if (leaderboard.length) {
-    ctx.font = '12px VT323, monospace';
+    ctx.font = '7px PressStart2P, monospace';
     ctx.fillStyle = '#819796';
     ctx.fillText('REKORD ' + leaderboard[0].score, 16, 50);
   }
@@ -1294,6 +1296,12 @@ function update(dt) {
 window.addEventListener('keydown', (ev) => {
   lastInput = Date.now();
   if (attract) { ev.preventDefault(); exitAttract(); return; }
+  if (state === 'title' && (ev.key === 'Enter' || ev.key === ' ')) {
+    ev.preventDefault();
+    AudioEngine.sfx.menuSelect();
+    startGame();
+    return;
+  }
   if (state === 'controls') {
     if (KEY_TO_DIR[ev.key] || ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); beginRound(); }
     return;

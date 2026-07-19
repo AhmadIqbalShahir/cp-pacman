@@ -127,14 +127,20 @@ VISUAL DESIGN SYSTEM
 --------------------------------------------------------------------------------
 - Colour is anchored to the APOLLO palette (AdamCYounis,
   lospec.com/palette-list/apollo) across walls, sprites, pellets, HUD and UI.
-- Typography is uniform: Press Start 2P for headings/HUD/labels, VT323 for
-  body/UI text. Both bundled locally (public/assets/fonts/), no CDN.
+- Typography is uniform and game-accurate: Press Start 2P everywhere in the
+  UI (headings, HUD, body text, Steuerung, Anleitung, leaderboard) at small
+  sizes with generous line height. The title tagline is one short arcade
+  line ("SAMMLE CP - UEBERLEBE DIE PROFS - HOL DIR DEN BACHELOR"). VT323
+  stays bundled only as a fallback. Both fonts local, no CDN.
 - Maze look (current): VIBRANT 2.5D. Walls are extruded blocks with lit top
   faces (vertical light falloff), darker stepped front faces, contact
   shadows, and a crisp highlight along light-facing top edges. Corridors
-  have a faint checkerboard so the floor reads as a surface. Per-level
-  palettes: amber PK 4.7, verdant green Mensa, violet Altgebaeude. (This
-  supersedes the interim neon-tube and soft-minimal looks.)
+  have a faint checkerboard plus per-level floor decals (chalk marks in
+  PK 4.7, coffee rings in the Mensa, fallen books in the Bib). Per-level
+  palettes: teal PK 4.7, verdant green Mensa, violet Altgebaeude. (This
+  supersedes the interim neon-tube, soft-minimal, and amber looks.)
+- README shows title and gameplay screenshots (docs/screenshot-title.png,
+  docs/screenshot-gameplay.png).
 - A soft vignette darkens the board edges, and a thin accent frame in the
   level colour surrounds the play area.
 - CP pellets are small gold coins (dark under-rim for thickness, shine spot,
@@ -150,11 +156,12 @@ CHARACTERS (all drawn procedurally on canvas, no image files)
   only; the mouth simply opens and closes while eating (closed smile, half
   open, wide open with tongue) and closes when standing still. There is no
   rotating Pac-Man wedge.
-- Professors: floating Einstein-style HEADS with no ghost silhouette. Wild
-  white hair, bushy eyebrows above big round glasses with temple arms,
-  moustache, cheek blush, thin head outline, and suit shoulders with an
-  accent bow tie (red = Prof 1, blue = Prof 2; Prof 2 also has a full white
-  beard). Pupils track their movement direction.
+- Professors: floating famous-scientist HEADS with no ghost silhouette,
+  both with big round glasses, cheek blush, thin head outline and suit
+  shoulders with an accent bow tie. Prof 1 is EINSTEIN (wild white hair
+  halo, moustache, red tie). Prof 2 is NEWTON (powdered side-curl wig,
+  stern clean-shaven mouth, blue tie, and the famous red apple with stem
+  and leaf perched on his head). Pupils track their movement direction.
 - Klausuren: walking exam sheets with a folded corner, ruled lines, a
   red-pen-circled "5,0" grade, googly eyes peeking over the top edge, and
   little legs (red header = Klausur 1, green header = Klausur 2).
@@ -187,23 +194,27 @@ BOARDS AND GAME STRUCTURE
 ENEMY AI (current behaviour)
 --------------------------------------------------------------------------------
 - Classic scatter/chase wave clock: 6s scatter / 18s chase / 6 / 18 / 4 /
-  then chase forever. During scatter each enemy retreats to its own corner;
-  on every phase switch all enemies reverse direction. The wave clock
-  pauses during Freiversuch, like the original.
-- Archetypes: Prof 1 direct chase; Prof 2 ambush (4 tiles ahead of the
-  player's heading); Klausur 1 semi-random pursuit (only erratic while
-  chasing, orderly during scatter); Klausur 2 shy (chases beyond 8 tiles,
-  retreats to its maze corner when closer).
+  then chase forever. During scatter each enemy PATROLS its own quadrant
+  between two waypoints (corner + inner point) instead of parking on a
+  corner tile; on every phase switch all enemies reverse direction and show
+  an emote ("!" chase, "?" scatter). The wave clock pauses during
+  Freiversuch, like the original.
+- Archetypes: Prof 1 (Einstein) direct chase; Prof 2 (Newton) ambush
+  (4 tiles ahead of the player's heading); Klausur 1 semi-random pursuit
+  (only erratic while chasing, orderly during scatter); Klausur 2 shy
+  (chases beyond 8 tiles, patrols its quadrant when closer).
 - "Elroy": once a board is nearly cleared (under 50 pellets), Prof 1 stops
   scattering and speeds up, with a second bump under 20 pellets.
 - Enemies traverse the tunnel at 60% speed, making it a real escape route.
 - Release timings are tight (0 / 1.5 / 3 / 4.5s), all four out by ~4.5s.
-- Pathing rules that keep the AI sane: fixed-tile targets (scatter corners,
-  shy retreat) use true shortest-path BFS steps, because stepwise greedy
+- Pathing rules that keep the AI sane: fixed-tile targets (patrol
+  waypoints) use true shortest-path BFS steps, because stepwise greedy
   distance can orbit small tile rings forever. Moving player-based targets
-  use classic greedy at intersections (imperfect pursuit is intended).
-  Eaten eyes BFS to the tile above the house door, then drop through the
-  one-way door to respawn. The player cannot enter the house.
+  use classic greedy at intersections (imperfect pursuit is intended), with
+  an anti-orbit tracker that breaks out via one BFS step if an enemy keeps
+  revisiting the same tile (they used to circle open pockets). Eaten eyes
+  BFS to the tile above the house door, then drop through the one-way door
+  to respawn. The player cannot enter the house.
 
 SOUND (public/audio.js, fully procedural Web Audio, no audio files)
 --------------------------------------------------------------------------------
@@ -214,21 +225,37 @@ SOUND (public/audio.js, fully procedural Web Audio, no audio files)
   higher-pitched as time runs out, and the background music ducks so the
   countdown reads clearly. Pairs with a draining countdown bar in the HUD
   that flashes red in the last 2 seconds.
+- Ambient tension during normal play: a classic siren that quickens and
+  rises as the board empties, plus a low heartbeat when a prof is within a
+  few tiles.
 - Looping chiptune background track (bass, arpeggio, lead, hat) via a
-  lookahead scheduler. Music and SFX have independent volume sliders and
-  mutes (title Settings panel, Pause menu, and a quick mute during play),
-  persisted to localStorage.
+  lookahead scheduler, with per-level variants (calm teal PK, brighter
+  Mensa +2 semitones, faster darker Altgebaeude -2) and a tempo push when
+  under 50 pellets remain. Music and SFX have independent volume sliders
+  and mutes (title Settings panel, Pause menu, and a quick mute during
+  play), persisted to localStorage.
 
 UI AND SCREENS
 --------------------------------------------------------------------------------
 - HTML overlays styled by the shared design system: animated title screen
-  (logo, cast row, leaderboard), STEUERUNG controls intro with drawn
-  key-caps shown at every game start, Anleitung screen, Settings, Pause
-  (P / Esc or button; includes sound controls, resume, quit to menu), and
-  Game Over with name entry.
-- Game Over: EINTRAGEN only saves when a name is entered; NOCHMAL SPIELEN
-  and HAUPTMENUE buttons always available; 30s idle timeout returns to the
-  title screen for unattended booth operation.
+  (logo, cast row, short arcade tagline, leaderboard), STEUERUNG controls
+  intro with drawn key-caps shown at every game start, Anleitung screen
+  with LIVE-RENDERED sprite icons next to each rule (student, CP coin,
+  Freiversuch seal, the enemy cast, bonus items), Settings, Pause (P / Esc
+  or button; includes sound controls, resume, quit to menu), and Game Over
+  with name entry.
+- ATTRACT MODE: after 60s of idle on the title screen, a demo AI plays the
+  game behind a pulsing "DRUECK EINE TASTE" banner. Any key or click
+  returns to the main menu. The demo AI commits to one decision per tile
+  (replanning every frame caused a frozen-looking reverse loop) and
+  restarts itself on death or completion.
+- Game Over: arcade LETTER PICKER for the name (arrow keys cycle letters
+  and slots, typing and clicking also work, Enter saves); EINTRAGEN only
+  saves when a name is entered; NOCHMAL SPIELEN and HAUPTMENUE buttons
+  always available; the panel shows a QR code block linking to the study
+  programme (public/assets/ui/qr.png); wins get palette confetti and a
+  count-up score; 30s idle timeout returns to the title screen for
+  unattended booth operation.
 - Leaderboard shows gold/silver/bronze medals for the top 3.
 - HUD: CP score with REKORD (session best) under it, level name + LEVEL n/3
   + subtitle centred, lives as mini student icons, Freiversuch countdown
@@ -236,8 +263,11 @@ UI AND SCREENS
 - Feinheiten: ready banner counts down (START IN 2..1), board-clear wall
   flash, banner pulse, bonus pop-in animation, hit-stop and particle burst
   when eating an enemy, screen shake + burst + spin on death, floating
-  score text, visible ghost-house door bar, pulsing tunnel chevrons at the
-  wrap exits.
+  score text, ghost-house door that slides open when someone passes
+  through, pulsing tunnel chevrons at the wrap exits, enemy emote bubbles
+  on wave switches and fright, a combo chip (x2/x4/x8) beside the fright
+  bar, player squash-and-stretch on turns, and a speed-line trail while a
+  Freiversuch is active.
 
 LEADERBOARD (deviates from the original spec BY USER REQUEST)
 --------------------------------------------------------------------------------
@@ -263,6 +293,15 @@ NOTABLE BUGS FOUND AND FIXED ALONG THE WAY
   frequent (see above).
 - The controls intro overlay initially did not appear (missing from the
   overlay-manager list). Fixed.
+- Enemies could circle open pockets of the maze indefinitely during chase
+  (greedy stepping around a plaza). Fixed with the anti-orbit tracker.
+- The attract demo froze in place when enemies were far: replanning every
+  frame let the rounded tile flip mid-tile and instant-reverse the player
+  across a boundary forever. Fixed by committing to one decision per tile
+  (verified zero stall frames over 40 simulated seconds).
+- Enemies camped in corners during scatter and shy retreat (single-tile
+  targets). Fixed with the two-waypoint quadrant patrol (verified 24-32
+  tiles of travel per scatter phase).
 
 TESTING NOTES
 --------------------------------------------------------------------------------

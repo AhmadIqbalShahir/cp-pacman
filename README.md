@@ -47,6 +47,12 @@ in your system's default browser instead.
 
 To exit kiosk mode: **Alt+F4** (Windows) or **Cmd+Q** (Mac).
 
+The game runs itself between visitors: after 60 seconds of idle on the
+title screen, a demo plays behind a "DRUECK EINE TASTE" banner to draw
+people in. Any key or click returns to the menu. After a game over, names
+are entered arcade-style with the arrow keys (typing works too), and the
+screen returns to the menu on its own after 30 seconds of inactivity.
+
 ## Leaderboard
 
 The leaderboard is temporary by design. Scores live in the server's memory
@@ -56,11 +62,14 @@ written to disk, so there is nothing to reset between events.
 
 ## Controls
 
-Arrow keys or WASD to move. Any key starts a game from the title screen.
+Arrow keys or WASD to move. Enter or Space starts a game from the title
+screen, P or Esc pauses. Name entry after a game over uses the arrow keys
+(up/down changes the letter, left/right moves, Enter saves); normal typing
+works as well.
 
 ## Known constraints
 
-- The server binds to `127.0.0.1` (localhost) only — it is not reachable
+- The server binds to `127.0.0.1` (localhost) only, so it is not reachable
   from other machines on the network.
 - Single-machine, single-player use. No multiplayer or network sync between
   booths.
