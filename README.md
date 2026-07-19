@@ -1,8 +1,8 @@
 # CP-Pacman · Campus-Jagd
 
-![Title screen](docs/screenshot-title.png)
+![Title screen](docs/Titlescreen.png)
 
-![Gameplay on the teal PK 4.7 board](docs/screenshot-gameplay.png)
+![Gameplay on the teal PK 4.7 board](docs/Gameplay.png)
 
 ## What this is
 
@@ -13,6 +13,8 @@ collecting CP (credit point) pellets while avoiding Profs and Prüfungen
 booth laptop via a small Node.js server and is meant to be launched with a
 single double-click. The leaderboard is session-only: it lives in the
 server's memory and starts empty every time the server is launched.
+
+![Instructions of the game](docs/Instructions.png)
 
 ## Requirements
 
