@@ -132,14 +132,18 @@
 
         <div id="nameEntryWrap">
           <div class="name-label">TRAG DICH IN DIE BESTENLISTE EIN</div>
-          <input id="nameEntry" type="text" maxlength="12" autocomplete="off" spellcheck="false"
-                 placeholder="DEIN NAME" />
+          <div id="letterPicker" class="letter-picker"></div>
+          <div class="picker-hint">PFEILE WAEHLEN · TIPPEN GEHT AUCH · ENTER SPEICHERT</div>
           <button id="submitScore" class="big-btn">EINTRAGEN</button>
         </div>
 
         <div class="board-panel">
           <div class="board-panel-head">BESTENLISTE</div>
           <ol id="gameOverLeaderboard" class="lb-list"></ol>
+        </div>
+        <div class="qr-block">
+          <img src="assets/ui/qr.png" alt="QR-Code" />
+          <div class="qr-text">NEUGIERIG GEWORDEN?<br>SCAN FUER MEHR INFOS<br>ZUM STUDIENGANG</div>
         </div>
         <div class="go-actions">
           <button id="againBtn" class="ghost-btn">NOCHMAL SPIELEN</button>

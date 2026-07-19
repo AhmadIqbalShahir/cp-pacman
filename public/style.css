@@ -295,13 +295,73 @@ body { display: flex; align-items: center; justify-content: center; }
 .final-score { font-family: var(--font-arcade); font-size: 14px; color: var(--gold); margin-bottom: 22px; }
 #finalScore { color: var(--text); }
 .name-label { font-size: 18px; color: var(--muted); margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
-#nameEntry {
-  font-family: var(--font-arcade); font-size: 16px;
-  text-align: center; text-transform: uppercase; letter-spacing: 3px;
-  width: 100%; padding: 14px;
-  border-radius: 8px; border: 2px solid var(--gold);
-  background: var(--bg); color: var(--gold); outline: none; margin-bottom: 14px;
-}
-#nameEntry::placeholder { color: #6a5a38; letter-spacing: 2px; }
 #nameEntryWrap { margin-bottom: 8px; }
 #nameEntryWrap .big-btn { width: 100%; }
+
+/* arcade letter picker */
+.letter-picker {
+  display: flex; justify-content: center; gap: 6px;
+  margin-bottom: 10px;
+}
+.pick-slot {
+  font-family: var(--font-arcade); font-size: 16px;
+  width: 38px; height: 46px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text);
+  background: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.pick-slot.active {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: 0 0 10px rgba(232,193,112,0.35);
+  position: relative;
+}
+.pick-slot.active::before, .pick-slot.active::after {
+  content: '';
+  position: absolute; left: 50%; transform: translateX(-50%);
+  border: 5px solid transparent;
+}
+.pick-slot.active::before { top: -12px; border-bottom-color: var(--gold); }
+.pick-slot.active::after { bottom: -12px; border-top-color: var(--gold); }
+.picker-hint {
+  font-size: 15px; color: var(--muted);
+  letter-spacing: 1px; margin-bottom: 12px;
+}
+
+/* QR block on the game-over panel */
+.qr-block {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin-top: 16px;
+  padding: 12px;
+  background: var(--surface2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.qr-block img {
+  width: 84px; height: 84px;
+  border-radius: 6px;
+  background: #fff; padding: 4px;
+}
+.qr-text {
+  font-size: 17px; line-height: 1.35;
+  color: var(--muted); text-align: left; letter-spacing: 1px;
+}
+
+/* win confetti */
+.confetti {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+  pointer-events: none;
+  animation: confettiFall linear forwards;
+  z-index: 5;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(105vh) rotate(660deg); opacity: 0; }
+}

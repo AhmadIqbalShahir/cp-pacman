@@ -636,6 +636,56 @@ function prerenderMaze(grid, map, rtile, rows, cols) {
     }
   }
 
+  // faint per-level floor decals (chalk in the Hoersaal, coffee rings in the
+  // Mensa, books in the Bib), deterministic so the board looks the same
+  // every run
+  (function drawDecals() {
+    let seed = { pk47: 11, forumsplatz: 22, altgebaeude: 33 }[map.id] || 7;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const open = [];
+    for (let r = 1; r < rows - 1; r++)
+      for (let cc = 1; cc < cols - 1; cc++)
+        if (grid[r][cc] !== '#' && grid[r][cc] !== 'o') open.push([r, cc]);
+    ctx.save();
+    ctx.lineCap = 'round';
+    for (let n = 0; n < 14 && open.length; n++) {
+      const [r, cc] = open[(rnd() * open.length) | 0];
+      const x = (cc + 0.5) * rtile, y = (r + 0.5) * rtile;
+      if (map.id === 'pk47') {
+        // chalk scribbles: +, x, =
+        ctx.strokeStyle = 'rgba(235,237,233,0.06)';
+        ctx.lineWidth = Math.max(1, rtile * 0.06);
+        const s = rtile * 0.22, kind = (rnd() * 3) | 0;
+        ctx.beginPath();
+        if (kind === 0) { ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); }
+        else if (kind === 1) { ctx.moveTo(x - s, y - s); ctx.lineTo(x + s, y + s); ctx.moveTo(x + s, y - s); ctx.lineTo(x - s, y + s); }
+        else { ctx.moveTo(x - s, y - s * 0.4); ctx.lineTo(x + s, y - s * 0.4); ctx.moveTo(x - s, y + s * 0.4); ctx.lineTo(x + s, y + s * 0.4); }
+        ctx.stroke();
+      } else if (map.id === 'forumsplatz') {
+        // coffee-cup ring stains
+        ctx.strokeStyle = 'rgba(192,148,115,0.09)';
+        ctx.lineWidth = Math.max(1, rtile * 0.08);
+        ctx.beginPath();
+        ctx.arc(x, y, rtile * 0.26, rnd() * 6, rnd() * 3 + 4);
+        ctx.stroke();
+      } else {
+        // fallen library books
+        ctx.strokeStyle = 'rgba(235,237,233,0.06)';
+        ctx.lineWidth = Math.max(1, rtile * 0.05);
+        const w = rtile * 0.42, h = rtile * 0.3;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate((rnd() - 0.5) * 0.9);
+        ctx.strokeRect(-w / 2, -h / 2, w, h);
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 + w * 0.2, -h / 2); ctx.lineTo(-w / 2 + w * 0.2, h / 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  })();
+
   const tilePath = (r, cc, dy) => {
     const up = isWall(r - 1, cc), dn = isWall(r + 1, cc), lf = isWall(r, cc - 1), rt = isWall(r, cc + 1);
     _cornerRectPath(ctx, cc * rtile + inset, r * rtile + inset + dy,

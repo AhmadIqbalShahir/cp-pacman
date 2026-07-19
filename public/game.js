@@ -70,6 +70,11 @@ let bonus = null;
 let hitstop = 0, shake = 0;
 let waveIndex = 0, waveTimer = 0, mode = 'scatter';
 let pelletsLeft = 999, extraLifeGiven = false;
+let doorOpen = 0;                 // ghost-house door animation (0 closed, 1 open)
+let comboPop = 0;                 // combo chip pop-scale timer
+let trailAcc = 0;                 // speed-line spawn accumulator during fright
+let attract = false;              // self-playing demo mode on the title screen
+const ATTRACT_AFTER = 60;         // seconds of title idle before the demo starts
 let lastInput = Date.now();
 let leaderboard = [];
 
@@ -78,7 +83,59 @@ let leaderboard = [];
 const el = (id) => document.getElementById(id);
 const overlays = ['titleScreen', 'controlsScreen', 'howScreen', 'settingsScreen', 'pauseScreen', 'gameOverScreen'];
 const playControls = el('playControls');
-const nameEntry = el('nameEntry');
+// arcade-style letter picker for name entry (arrow keys, typing also works)
+const PICK_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+const NAME_SLOTS = 8;
+let pickerIdx = [], pickerPos = 0;
+
+function initPicker() {
+  pickerIdx = new Array(NAME_SLOTS).fill(-1);
+  pickerIdx[0] = 0;
+  pickerPos = 0;
+  renderPicker();
+}
+function pickerName() {
+  return pickerIdx.filter((i) => i >= 0).map((i) => PICK_CHARS[i]).join('');
+}
+function renderPicker() {
+  const host = el('letterPicker');
+  if (!host) return;
+  host.innerHTML = '';
+  pickerIdx.forEach((ci, i) => {
+    const slot = document.createElement('span');
+    slot.className = 'pick-slot' + (i === pickerPos ? ' active' : '');
+    slot.textContent = ci >= 0 ? PICK_CHARS[ci] : '·';
+    slot.addEventListener('pointerdown', (ev) => { ev.stopPropagation(); pickerPos = i; renderPicker(); });
+    host.appendChild(slot);
+  });
+}
+function pickerKey(ev) {
+  const k = ev.key;
+  if (k === 'Enter') { submitScore(); return; }
+  if (k === 'ArrowUp' || k === 'ArrowDown') {
+    const dir = k === 'ArrowUp' ? 1 : -1;
+    let ci = pickerIdx[pickerPos] + dir;
+    if (ci >= PICK_CHARS.length) ci = -1;                 // wraps through "empty"
+    if (ci < -1) ci = PICK_CHARS.length - 1;
+    pickerIdx[pickerPos] = ci;
+  } else if (k === 'ArrowRight') {
+    pickerPos = Math.min(NAME_SLOTS - 1, pickerPos + 1);
+    if (pickerIdx[pickerPos] === -1) pickerIdx[pickerPos] = pickerIdx[pickerPos - 1] >= 0 ? pickerIdx[pickerPos - 1] : 0;
+  } else if (k === 'ArrowLeft') {
+    pickerPos = Math.max(0, pickerPos - 1);
+  } else if (k === 'Backspace') {
+    pickerIdx[pickerPos] = -1;
+    pickerPos = Math.max(0, pickerPos - 1);
+  } else if (/^[a-zA-Z0-9]$/.test(k)) {                   // typing works too
+    pickerIdx[pickerPos] = PICK_CHARS.indexOf(k.toUpperCase());
+    pickerPos = Math.min(NAME_SLOTS - 1, pickerPos + 1);
+  } else {
+    return;
+  }
+  ev.preventDefault();
+  AudioEngine.sfx.menuMove();
+  renderPicker();
+}
 
 function showOverlay(id) {
   overlays.forEach((o) => el(o).classList.toggle('hidden', o !== id));
@@ -128,7 +185,8 @@ function enemySpeedFactor() { return Math.min(ENEMY_CAP, ENEMY_BASE + boardsClea
 
 function makeEnemy(type, home) {
   return { type, homeTile: home, x: home.col, y: home.row, dir: null,
-    state: 'waiting', releaseAt: RELEASE[type], animFrame: 0, animTimer: 0, lastCell: null };
+    state: 'waiting', releaseAt: RELEASE[type], animFrame: 0, animTimer: 0,
+    lastCell: null, hist: [], emote: null };
 }
 
 function findBonusTile() {
@@ -178,6 +236,8 @@ function loadBoard(index, freshGame) {
     makeEnemy('pruefung1', homes[3]), makeEnemy('pruefung2', homes[4])];
 
   mazeImg = prerenderMaze(grid, map, RTILE, MAP_ROWS, MAP_COLS);
+  AudioEngine.setMusicLevel(mapIndex);
+  doorOpen = 0;
   totalPellets = countPellets();
   pelletsLeft = totalPellets;
   bonus = null;
@@ -197,7 +257,7 @@ function resetActors() {
   player.dir = null; player.want = null;
   for (const e of enemies) {
     e.x = e.homeTile.col; e.y = e.homeTile.row;
-    e.dir = null; e.state = 'waiting'; e.lastCell = null;
+    e.dir = null; e.state = 'waiting'; e.lastCell = null; e.hist.length = 0; e.emote = null;
   }
   boardTimer = 0; frightActive = false; frightTimer = 0; chain = 0;
   waveIndex = 0; waveTimer = 0; mode = WAVES[0].mode;
@@ -361,6 +421,19 @@ function chooseEnemyDir(e, col, row) {
     }
     return greedy(col, row, opts, e.homeTile);
   }
+  // anti-orbit: if this enemy keeps revisiting the same tile (circling an
+  // open pocket, as greedy chase can around plaza areas), break the loop
+  // with one true shortest-path step toward its target
+  const key = col + ',' + row;
+  e.hist.push(key);
+  if (e.hist.length > 14) e.hist.shift();
+  let revisits = 0;
+  for (const k of e.hist) if (k === key) revisits++;
+  if (revisits >= 3) {
+    const d = bfsDir(col, row, getTarget(e), (c2, r2) => isOpen(c2, r2) && !needsExit(c2, r2));
+    if (d) { e.hist.length = 0; return d; }
+  }
+
   // pruefung1 is only erratic while chasing; during scatter it heads home
   if (e.type === 'pruefung1' && mode !== 'scatter') {
     return Math.random() < 0.5 ? greedy(col, row, allowed, getTarget(e))
@@ -384,6 +457,67 @@ function enemyWant(e, col, row) {
   if (e.lastCell === key && e.dir) return e.dir;
   e.lastCell = key;
   return chooseEnemyDir(e, col, row);
+}
+
+// ---- attract-mode demo AI --------------------------------------------
+
+function bfsToPellet(c0, r0) {
+  const seen = new Uint8Array(MAP_COLS * MAP_ROWS);
+  const q = [[c0, r0, null]];
+  seen[r0 * MAP_COLS + c0] = 1;
+  for (let h = 0; h < q.length; h++) {
+    const [c, r, first] = q[h];
+    for (const d of ['up', 'down', 'left', 'right']) {
+      const [dx, dy] = DIRS[d];
+      const nc = wrapCol(c + dx), nr = r + dy;
+      if (nr < 0 || nr >= MAP_ROWS || !isOpenForPlayer(nc, nr)) continue;
+      const idx = nr * MAP_COLS + nc;
+      if (seen[idx]) continue;
+      seen[idx] = 1;
+      const f = first || d;
+      const ch = grid[nr][nc];
+      if (ch === '.' || ch === 'o') return f;
+      q.push([nc, nr, f]);
+    }
+  }
+  return null;
+}
+
+function attractWant() {
+  const col = Math.round(player.x), row = Math.round(player.y);
+  // flee the nearest hunting enemy when it gets close
+  let hunter = null, best = Infinity;
+  for (const e of enemies) {
+    if (e.state !== 'normal') continue;
+    const d = dist2(e.x, e.y, player.x, player.y);
+    if (d < best) { best = d; hunter = e; }
+  }
+  if (hunter && best < 20) {
+    let bd = -1, bdir = player.dir || 'left';
+    for (const d of ['up', 'down', 'left', 'right']) {
+      const [dx, dy] = DIRS[d];
+      const nc = wrapCol(col + dx), nr = row + dy;
+      if (!isOpenForPlayer(nc, nr)) continue;
+      const dd = dist2(nc, nr, hunter.x, hunter.y);
+      if (dd > bd) { bd = dd; bdir = d; }
+    }
+    return bdir;
+  }
+  return bfsToPellet(col, row) || player.dir;
+}
+
+function startAttract() {
+  attract = true;
+  loadBoard((Math.random() * MAPS.length) | 0, true);
+  showOverlay(null);
+  playControls.classList.add('hidden');
+  state = 'ready'; phaseTimer = 1;
+}
+
+function exitAttract() {
+  attract = false;
+  AudioEngine.sfx.menuSelect();
+  startGame();
 }
 
 // ---- particles / floaters -------------------------------------------
@@ -415,6 +549,9 @@ function updatePlaying(dt) {
       waveIndex = Math.min(waveIndex + 1, WAVES.length - 1);
       mode = WAVES[waveIndex].mode;
       reverseEnemies();
+      // telegraph the AI rhythm: "!" when the hunt starts, "?" on scatter
+      for (const e of enemies)
+        if (e.state === 'normal') e.emote = { ch: mode === 'chase' ? '!' : '?', t: 1.2 };
     }
   }
 
@@ -428,6 +565,9 @@ function updatePlaying(dt) {
     }
   }
 
+  // attract mode: a simple demo AI steers the student
+  if (attract) player.want = attractWant();
+
   // player (blocked from entering the ghost house)
   moveMover(player, PLAYER_SPEED, dt, playerWant, isOpenForPlayer);
   player.moving = !!player.dir;
@@ -437,6 +577,44 @@ function updatePlaying(dt) {
   } else {
     player.animFrame = 0;                        // mouth closes when standing still
   }
+
+  // squash-and-stretch on direction changes
+  if (player.dir && player.dir !== player.seenDir) {
+    player.seenDir = player.dir;
+    player.squash = 0.16;
+  }
+  if (player.squash > 0) player.squash = Math.max(0, player.squash - dt);
+
+  // speed-line trail while a Freiversuch is active
+  if (frightActive && player.moving) {
+    trailAcc += dt;
+    if (trailAcc > 0.05) {
+      trailAcc = 0;
+      const [tdx, tdy] = DIRS[player.dir];
+      particles.push({ x: px(player.x) - tdx * RTILE * 0.4, y: py(player.y) - tdy * RTILE * 0.4,
+        vx: 0, vy: 0, life: 0.28, color: 'rgba(232,193,112,0.7)' });
+    }
+  }
+
+  // ghost-house door slides open when someone is passing through
+  const doorBusy = enemies.some((e) => {
+    const c = Math.round(e.x), r = Math.round(e.y);
+    return c >= 12 && c <= 15 && r >= 12 && r <= 14 && e.state !== 'waiting';
+  });
+  doorOpen += ((doorBusy ? 1 : 0) - doorOpen) * Math.min(1, dt * 8);
+
+  // emote timers
+  for (const e of enemies)
+    if (e.emote) { e.emote.t -= dt; if (e.emote.t <= 0) e.emote = null; }
+
+  // ambient tension: siren + heartbeat (Freiversuch has its own pulse)
+  if (!frightActive) {
+    let near = Infinity;
+    for (const e of enemies)
+      if (e.state === 'normal') near = Math.min(near, Math.sqrt(dist2(e.x, e.y, player.x, player.y)));
+    AudioEngine.ambient(dt, pelletsEaten / Math.max(1, totalPellets), near);
+  }
+  AudioEngine.setMusicUrgent(pelletsLeft < ELROY_PELLETS);
 
   // pellet pickup
   const pcol = Math.round(player.x), prow = Math.round(player.y);
@@ -500,6 +678,7 @@ function updatePlaying(dt) {
         floatText(px(e.x), py(e.y), 'BESTANDEN +' + pts, '#a8ca58');
         burst(px(e.x), py(e.y), '#a8ca58', 22);
         hitstop = 0.07;
+        comboPop = 0.25;
       }
     }
   }
@@ -523,6 +702,7 @@ function updatePlaying(dt) {
 }
 
 function updateFx(dt) {
+  if (comboPop > 0) comboPop = Math.max(0, comboPop - dt);
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.x += p.vx; p.y += p.vy; p.vx *= 0.9; p.vy *= 0.9; p.life -= dt;
@@ -542,6 +722,7 @@ function triggerFright() {
   for (const e of enemies) {
     if (e.state === 'normal') {
       e.state = 'frightened'; e.lastCell = null;
+      e.emote = { ch: '!', t: 0.8 };
       if (e.dir) e.dir = OPP[e.dir];
     }
   }
@@ -567,6 +748,10 @@ function startDeath() {
 }
 
 function finishDeath() {
+  if (attract) {                    // the demo just restarts itself
+    startAttract();
+    return;
+  }
   lives--;
   if (lives <= 0) {
     gameOver();
@@ -579,6 +764,7 @@ function finishDeath() {
 // ---- game flow -------------------------------------------------------
 
 function startGame() {
+  attract = false;
   AudioEngine.unlock();
   AudioEngine.startMusic();
   loadBoard(0, true);
@@ -609,12 +795,38 @@ function gameOver(won) {
   title.textContent = won ? 'BACHELOR GESCHAFFT' : 'DURCHGEFALLEN';
   title.classList.toggle('fail', !won);
   title.classList.toggle('win', !!won);
-  el('finalScore').textContent = score;
   el('nameEntryWrap').style.display = '';
-  nameEntry.value = '';
+  initPicker();
   renderLeaderboard('gameOverLeaderboard', leaderboard);
   showOverlay('gameOverScreen');
-  setTimeout(() => nameEntry.focus(), 50);
+
+  // score counts up for a little ceremony
+  const scoreEl = el('finalScore');
+  const t0 = performance.now();
+  (function tick() {
+    const k = Math.min(1, (performance.now() - t0) / 1100);
+    scoreEl.textContent = Math.round(score * k * (2 - k));
+    if (k < 1 && state === 'gameover') requestAnimationFrame(tick);
+  })();
+
+  if (won) spawnConfetti();
+}
+
+// palette confetti rain over the game-over panel on a win
+function spawnConfetti() {
+  const host = el('gameOverScreen');
+  const colors = ['#e8c170', '#a8ca58', '#73bed3', '#df84a5', '#ebede9'];
+  for (let i = 0; i < 70; i++) {
+    const p = document.createElement('div');
+    p.className = 'confetti';
+    p.style.left = Math.random() * 100 + '%';
+    p.style.background = colors[i % colors.length];
+    p.style.animationDuration = 2.4 + Math.random() * 1.8 + 's';
+    p.style.animationDelay = Math.random() * 0.8 + 's';
+    p.style.width = p.style.height = 6 + Math.random() * 6 + 'px';
+    host.appendChild(p);
+    setTimeout(() => p.remove(), 5200);
+  }
 }
 
 function quitToTitle() {
@@ -626,6 +838,7 @@ function quitToTitle() {
 }
 
 function togglePause() {
+  if (attract) { exitAttract(); return; }
   if (state === 'playing') {
     state = 'paused';
     AudioEngine.sfx.pause();
@@ -671,9 +884,9 @@ function renderLeaderboard(id, entries) {
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 async function submitScore() {
-  const name = nameEntry.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+  const name = pickerName().slice(0, 12);
   lastInput = Date.now();
-  if (!name.length) { nameEntry.focus(); return; }     // need a name to save
+  if (!name.length) return;                            // need a name to save
   AudioEngine.sfx.menuSelect();
   try {
     const res = await fetch('/api/leaderboard', {
@@ -736,6 +949,16 @@ function drawPlayer(dyingT) {
     ctx.rotate((1 - dyingT) * Math.PI * 2);
     ctx.translate(-x, -y);
   }
+  // squash-and-stretch along the movement axis right after a turn
+  if (player.squash > 0 && player.dir && dyingT == null) {
+    const k = player.squash / 0.16;
+    const horiz = player.dir === 'left' || player.dir === 'right';
+    const sx = 1 + (horiz ? 0.14 : -0.12) * k;
+    const sy = 1 + (horiz ? -0.12 : 0.14) * k;
+    ctx.translate(x, y);
+    ctx.scale(sx, sy);
+    ctx.translate(-x, -y);
+  }
   const spr = getPlayerSprite(player.dir || 'right', player.animFrame, SPRITE);
   ctx.drawImage(spr, x - SPRITE / 2, y - SPRITE / 2, SPRITE, SPRITE);
   ctx.restore();
@@ -759,6 +982,21 @@ function drawEnemies() {
     if (e.state !== 'eaten') drawShadow(x, y, 0.9);
     const spr = getEnemySprite(e.type, e.dir || 'down', e.animFrame, enemyStateKey(e), SPRITE);
     ctx.drawImage(spr, x - SPRITE / 2, y - SPRITE / 2 + bob, SPRITE, SPRITE);
+    // emote bubble ("!" chase, "?" scatter), rising and fading
+    if (e.emote) {
+      const a = Math.min(1, e.emote.t * 2);
+      const rise = (1.2 - e.emote.t) * 6;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.font = `${Math.floor(RTILE * 0.5)}px "Press Start 2P", monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#10141f';
+      ctx.strokeText(e.emote.ch, x, y - SPRITE * 0.72 - rise);
+      ctx.fillStyle = e.emote.ch === '!' ? '#e8c170' : '#73bed3';
+      ctx.fillText(e.emote.ch, x, y - SPRITE * 0.72 - rise);
+      ctx.restore();
+    }
   }
 }
 
@@ -791,6 +1029,19 @@ function drawHud() {
     ctx.fillRect(0, HUD_HEIGHT - 5, canvas.width, 5);
     ctx.fillStyle = flashing ? '#cf573c' : '#e8c170';
     ctx.fillRect(0, HUD_HEIGHT - 5, w, 5);
+    // combo chip: shows the current chain multiplier while the window runs
+    if (chain > 0) {
+      const scale = 1 + 0.4 * (comboPop / 0.25);
+      const cwid = 88 * scale, chg = 26 * scale;
+      const cx0 = canvas.width - 16 - cwid, cy0 = HUD_HEIGHT - 10 - chg;
+      roundRectPath(ctx, cx0, cy0, cwid, chg, 6 * scale);
+      ctx.fillStyle = '#e8c170';
+      ctx.fill();
+      ctx.fillStyle = '#1a1206';
+      ctx.font = `${Math.floor(11 * scale)}px PressStart2P, monospace`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('x' + Math.pow(2, chain), cx0 + cwid / 2, cy0 + chg / 2 + 1);
+    }
   } else {
     ctx.fillStyle = map.glow;
     ctx.fillRect(0, HUD_HEIGHT - 2, canvas.width, 2);
@@ -867,9 +1118,14 @@ function drawMazeDetails() {
   ctx.stroke();
   ctx.restore();
 
-  // ghost-house door: a light bar across the exit gap so the one-way door reads
+  // ghost-house door: two halves that slide apart when someone passes through
+  const dx0 = 13 * RTILE + 2, dw = 2 * RTILE - 4, dy0 = HUD_HEIGHT + 13 * RTILE + 2;
+  const half = (dw / 2) * (1 - doorOpen);
   ctx.fillStyle = 'rgba(231,213,179,0.55)';
-  ctx.fillRect(13 * RTILE + 2, HUD_HEIGHT + 13 * RTILE + 2, 2 * RTILE - 4, 4);
+  if (half > 1) {
+    ctx.fillRect(dx0, dy0, half, 4);
+    ctx.fillRect(dx0 + dw - half, dy0, half, 4);
+  }
 
   // tunnel hints: pulsing chevrons pointing out of the wrap corridor
   const a = 0.25 + 0.2 * Math.sin(animClock * 3);
@@ -919,6 +1175,26 @@ function renderGame() {
   drawHud();
   ctx.restore();
 
+  if (attract) {
+    // attract-mode banner over the running demo
+    ctx.save();
+    ctx.fillStyle = 'rgba(9,10,20,0.72)';
+    const bw = Math.min(canvas.width - 40, 560), bx = canvas.width / 2 - bw / 2;
+    roundRectPath(ctx, bx, 84, bw, 108, 14);
+    ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '26px PressStart2P, monospace';
+    ctx.fillStyle = '#e8c170';
+    ctx.fillText('CP-PACMAN', canvas.width / 2, 124);
+    if (Math.floor(animClock * 2) % 2 === 0) {
+      ctx.font = '12px PressStart2P, monospace';
+      ctx.fillStyle = '#ebede9';
+      ctx.fillText('DRUECK EINE TASTE', canvas.width / 2, 164);
+    }
+    ctx.restore();
+    return;
+  }
+
   if (state === 'ready') centerBanner('LEVEL ' + semester, map.name + ' · START IN ' + Math.max(1, Math.ceil(phaseTimer)), '#e8c170');
   else if (state === 'boardClear') centerBanner('GESCHAFFT!',
     boardsCleared >= TOTAL_LEVELS ? '+1000 CP · STUDIUM ABGESCHLOSSEN' : '+1000 CP · NAECHSTES LEVEL', '#a8ca58');
@@ -955,10 +1231,18 @@ function update(dt) {
       break;
     case 'boardClear':
       animClock += dt; phaseTimer -= dt;
-      if (phaseTimer <= 0) { if (boardsCleared >= TOTAL_LEVELS) gameOver(true); else nextBoard(); }
+      if (phaseTimer <= 0) {
+        if (attract && boardsCleared >= TOTAL_LEVELS) startAttract();
+        else if (boardsCleared >= TOTAL_LEVELS) gameOver(true);
+        else nextBoard();
+      }
       break;
     case 'gameover':
       if (Date.now() - lastInput > IDLE_TIMEOUT * 1000) quitToTitle();
+      break;
+    case 'title':
+      animClock += dt;
+      if (Date.now() - lastInput > ATTRACT_AFTER * 1000) startAttract();
       break;
   }
 }
@@ -967,6 +1251,7 @@ function update(dt) {
 
 window.addEventListener('keydown', (ev) => {
   lastInput = Date.now();
+  if (attract) { ev.preventDefault(); exitAttract(); return; }
   if (state === 'controls') {
     if (KEY_TO_DIR[ev.key] || ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); beginRound(); }
     return;
@@ -978,13 +1263,13 @@ window.addEventListener('keydown', (ev) => {
   } else if (state === 'paused') {
     if (ev.key === 'p' || ev.key === 'P' || ev.key === 'Escape') togglePause();
   } else if (state === 'gameover') {
-    if (ev.key === 'Enter' && el('nameEntryWrap').style.display !== 'none') submitScore();
+    if (el('nameEntryWrap').style.display !== 'none') pickerKey(ev);
   }
 });
 
-nameEntry.addEventListener('input', () => {
+window.addEventListener('pointerdown', () => {
   lastInput = Date.now();
-  nameEntry.value = nameEntry.value.replace(/[^a-zA-Z0-9]/g, '').slice(0, 12);
+  if (attract) exitAttract();
 });
 
 el('playBtn').addEventListener('click', () => { AudioEngine.sfx.menuSelect(); startGame(); });

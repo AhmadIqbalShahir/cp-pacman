@@ -1,4 +1,8 @@
-# CP-Pacman — Messe Edition
+# CP-Pacman · Campus-Jagd
+
+![Title screen](docs/screenshot-title.png)
+
+![Gameplay on the teal PK 4.7 board](docs/screenshot-gameplay.png)
 
 ## What this is
 

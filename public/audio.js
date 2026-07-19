@@ -152,6 +152,36 @@ const AudioEngine = (() => {
     unpause() { blip(sfxBus, { type: 'sine', freq: 300, freqEnd: 460, dur: 0.12, gain: 0.2 }); },
   };
 
+  // ---- ambient tension: proximity siren + heartbeat -------------------
+
+  let sirenAcc = 0, heartAcc = 0;
+  // Call every frame during normal play. progress = fraction of pellets
+  // eaten (0..1), nearDist = distance in tiles to the nearest hunting enemy.
+  function ambient(dt, progress, nearDist) {
+    if (!ctx) return;
+    // classic rising siren: quicker and higher as the board empties
+    sirenAcc += dt;
+    const interval = 0.62 - 0.3 * Math.min(1, progress);
+    if (sirenAcc >= interval) {
+      sirenAcc = 0;
+      const base = 230 + Math.min(1, progress) * 230;
+      blip(sfxBus, { type: 'triangle', freq: base, freqEnd: base * 1.4, dur: interval * 0.55, gain: 0.05 });
+      blip(sfxBus, { type: 'triangle', freq: base * 1.4, freqEnd: base, dur: interval * 0.5, gain: 0.045, delay: interval * 0.5 });
+    }
+    // heartbeat when a prof is breathing down your neck
+    if (nearDist < 4.5) {
+      heartAcc += dt;
+      const beat = 0.5 + (nearDist / 4.5) * 0.4;
+      if (heartAcc >= beat) {
+        heartAcc = 0;
+        blip(sfxBus, { type: 'sine', freq: 72, freqEnd: 50, dur: 0.09, gain: 0.22 });
+        blip(sfxBus, { type: 'sine', freq: 60, freqEnd: 44, dur: 0.08, gain: 0.15, delay: 0.13 });
+      }
+    } else {
+      heartAcc = 0;
+    }
+  }
+
   // ---- music: lookahead sequencer ------------------------------------
 
   // A cheerful-but-tense chiptune loop. Bass + arpeggio + lead, 16 steps.
@@ -170,6 +200,18 @@ const AudioEngine = (() => {
   let step = 0;
   let musicOn = false;
 
+  // per-level variants: same track, different tempo and key; urgency kicks
+  // the tempo up when a board is nearly cleared
+  const MUSIC_VARIANTS = [
+    { tempoMul: 1.0, pitchMul: 1.0 },        // teal PK 4.7: calm baseline
+    { tempoMul: 1.06, pitchMul: 1.1225 },    // Mensa: brighter, +2 semitones
+    { tempoMul: 1.12, pitchMul: 0.8909 },    // Altgebaeude: faster, -2, menacing
+  ];
+  let musicVariant = MUSIC_VARIANTS[0];
+  let musicUrgent = false;
+  function setMusicLevel(i) { musicVariant = MUSIC_VARIANTS[i % MUSIC_VARIANTS.length] || MUSIC_VARIANTS[0]; }
+  function setMusicUrgent(on) { musicUrgent = !!on; }
+
   function scheduleNote(freq, time, dur, type, gain, bus) {
     if (freq == null) return;
     const osc = ctx.createOscillator();
@@ -186,14 +228,17 @@ const AudioEngine = (() => {
 
   function scheduler() {
     if (!musicOn) return;
+    const stepDur = (60 / (TEMPO * musicVariant.tempoMul * (musicUrgent ? 1.12 : 1))) / 2;
+    const pm = musicVariant.pitchMul;
     while (nextStepTime < ctx.currentTime + 0.15) {
       const i = step % 16;
-      scheduleNote(N[bassPattern[i]] || null, nextStepTime, STEP * 1.6, 'triangle', 0.5, musicBus);
-      scheduleNote(N[arpPattern[i]] || null, nextStepTime, STEP * 0.5, 'square', 0.12, musicBus);
-      if (i % 2 === 0) scheduleNote(N[leadPattern[i]] || null, nextStepTime, STEP * 0.9, 'square', 0.16, musicBus);
+      const bass = N[bassPattern[i]], arp = N[arpPattern[i]], lead = N[leadPattern[i]];
+      scheduleNote(bass ? bass * pm : null, nextStepTime, stepDur * 1.6, 'triangle', 0.5, musicBus);
+      scheduleNote(arp ? arp * pm : null, nextStepTime, stepDur * 0.5, 'square', 0.12, musicBus);
+      if (i % 2 === 0) scheduleNote(lead ? lead * pm : null, nextStepTime, stepDur * 0.9, 'square', 0.16, musicBus);
       // hi-hat-ish tick
       if (i % 2 === 1) noiseBurst(musicBus, { dur: 0.04, gain: 0.05, hp: 6000 });
-      nextStepTime += STEP;
+      nextStepTime += stepDur;
       step++;
     }
     musicTimer = setTimeout(scheduler, 25);
@@ -252,6 +297,9 @@ const AudioEngine = (() => {
     startFright,
     endFright,
     frightPulse,
+    ambient,
+    setMusicLevel,
+    setMusicUrgent,
     isMusicOn: () => musicOn,
     getSettings: () => ({ ...settings }),
     setSfxVolume(v) { settings.sfxVolume = Math.max(0, Math.min(1, v)); applyVolumes(); save(); },
