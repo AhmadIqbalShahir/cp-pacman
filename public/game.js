@@ -42,9 +42,14 @@ const WAVES = [
   { dur: 6, mode: 'scatter' }, { dur: 18, mode: 'chase' },
   { dur: 4, mode: 'scatter' }, { dur: Infinity, mode: 'chase' },
 ];
-const SCATTER_TARGETS = {
-  prof1: { col: 25, row: 1, fixed: true }, prof2: { col: 2, row: 1, fixed: true },
-  pruefung1: { col: 25, row: 29, fixed: true }, pruefung2: { col: 2, row: 29, fixed: true },
+// Each enemy owns a quadrant: during scatter it patrols BETWEEN two waypoints
+// (corner and an inner point) instead of parking on a single corner tile,
+// which had them wiggling in place until the phase ended.
+const SCATTER_CORNERS = {
+  prof1: [25, 1], prof2: [2, 1], pruefung1: [25, 29], pruefung2: [2, 29],
+};
+const SCATTER_INNER = {
+  prof1: [18, 8], prof2: [9, 8], pruefung1: [18, 22], pruefung2: [9, 22],
 };
 const ELROY_PELLETS = 50;          // prof1 stops scattering below this
 const ELROY_PELLETS_2 = 20;        // ...and gets a second speed bump here
@@ -234,6 +239,10 @@ function loadBoard(index, freshGame) {
     animFrame: 0, animTimer: 0, moving: false };
   enemies = [makeEnemy('prof1', homes[1]), makeEnemy('prof2', homes[2]),
     makeEnemy('pruefung1', homes[3]), makeEnemy('pruefung2', homes[4])];
+  for (const e of enemies) {
+    e.patrol = [nearestOpenTile(...SCATTER_CORNERS[e.type]), nearestOpenTile(...SCATTER_INNER[e.type])];
+    e.patrolIdx = 0;
+  }
 
   mazeImg = prerenderMaze(grid, map, RTILE, MAP_ROWS, MAP_COLS);
   AudioEngine.setMusicLevel(mapIndex);
@@ -324,11 +333,35 @@ function reverseEnemies() {
 
 function isElroy(e) { return e.type === 'prof1' && e.state === 'normal' && pelletsLeft < ELROY_PELLETS; }
 
+// nearest open, non-house tile to the given coordinates (spiral scan)
+function nearestOpenTile(col, row) {
+  for (let rad = 0; rad < 8; rad++)
+    for (let dr = -rad; dr <= rad; dr++)
+      for (let dc = -rad; dc <= rad; dc++) {
+        const r = row + dr, c = col + dc;
+        if (r > 0 && r < MAP_ROWS - 1 && c > 0 && c < MAP_COLS - 1 &&
+            grid[r][c] !== '#' && !needsExit(c, r)) {
+          return { col: c, row: r, fixed: true };
+        }
+      }
+  return { col, row, fixed: true };
+}
+
+// current patrol waypoint; swings to the other one on arrival
+function patrolTarget(e) {
+  const t = e.patrol[e.patrolIdx];
+  if (dist2(e.x, e.y, t.col, t.row) < 4) {
+    e.patrolIdx ^= 1;
+    return e.patrol[e.patrolIdx];
+  }
+  return t;
+}
+
 function getTarget(e) {
   const pt = { col: Math.round(player.x), row: Math.round(player.y) };
-  // scatter phase: everyone retreats to their own corner (except an elroy
+  // scatter phase: everyone patrols their own quadrant (except an elroy
   // prof1, who never stops hunting once the board is nearly cleared)
-  if (mode === 'scatter' && !isElroy(e)) return SCATTER_TARGETS[e.type];
+  if (mode === 'scatter' && !isElroy(e)) return patrolTarget(e);
   switch (e.type) {
     case 'prof1': return pt;
     case 'prof2': {
@@ -342,7 +375,7 @@ function getTarget(e) {
       // shy retreat flees to its maze corner, NOT the home tile: the house
       // is one-way, so a home target left it orbiting in front of the door
       const d2 = dist2(e.x, e.y, pt.col, pt.row);
-      return d2 > 64 ? pt : SCATTER_TARGETS.pruefung2;
+      return d2 > 64 ? pt : patrolTarget(e);
     }
     default: return pt;
   }
@@ -485,6 +518,15 @@ function bfsToPellet(c0, r0) {
 
 function attractWant() {
   const col = Math.round(player.x), row = Math.round(player.y);
+  // Commit to one decision per tile: replanning every frame lets the rounded
+  // position flip mid-tile, which can instant-reverse the player back and
+  // forth across a tile boundary until it looks frozen.
+  const atCenter = Math.abs(player.x - col) < 0.15 && Math.abs(player.y - row) < 0.15;
+  if (!atCenter && player.dir) return player.want || player.dir;
+  const cellKey = col + ',' + row;
+  if (player.aiCell === cellKey && player.dir && player.want) return player.want;
+  player.aiCell = cellKey;
+
   // flee the nearest hunting enemy when it gets close
   let hunter = null, best = Infinity;
   for (const e of enemies) {
@@ -1351,11 +1393,44 @@ function buildCastRow() {
   }
 }
 
+// fill the Anleitung rows with live-rendered icons of what to look for
+function buildHowIcons() {
+  const mk = (draw) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 72;
+    draw(c.getContext('2d'));
+    const img = document.createElement('img');
+    img.src = c.toDataURL();
+    img.alt = '';
+    return img;
+  };
+  const icons = {
+    player: [mk((cx) => cx.drawImage(getPlayerSprite('down', 1, 72), 0, 0))],
+    cp: [mk((cx) => drawCpPellet(cx, 36, 38, 230, 0.6))],
+    power: [mk((cx) => drawPowerPellet(cx, 36, 38, 96, 0.8))],
+    enemies: [
+      mk((cx) => cx.drawImage(getEnemySprite('prof1', 'down', 0, 'normal', 72), 0, 0)),
+      mk((cx) => cx.drawImage(getEnemySprite('prof2', 'down', 0, 'normal', 72), 0, 0)),
+      mk((cx) => cx.drawImage(getEnemySprite('pruefung1', 'down', 0, 'normal', 72), 0, 0)),
+    ],
+    bonus: [
+      mk((cx) => drawBonusIcon(cx, 'coffee', 36, 36, 62)),
+      mk((cx) => drawBonusIcon(cx, 'wurst', 36, 36, 62)),
+      mk((cx) => drawBonusIcon(cx, 'book', 36, 36, 62)),
+    ],
+  };
+  document.querySelectorAll('.how-icon').forEach((span) => {
+    span.innerHTML = '';
+    (icons[span.dataset.ico] || []).forEach((img) => span.appendChild(img));
+  });
+}
+
 async function init() {
   if (document.fonts && document.fonts.load) {
     try { await document.fonts.load('16px PressStart2P'); } catch (e) { /* ignore */ }
   }
   buildCastRow();
+  buildHowIcons();
   await fetchLeaderboard();
   syncSettingsControls();
   showOverlay('titleScreen');

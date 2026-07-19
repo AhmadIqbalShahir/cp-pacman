@@ -9,7 +9,7 @@
 // so every sprite, wall and UI element shares one deliberate, hand-authored set.
 const ENEMY_DEFS = {
   prof1: { kind: 'prof', face: 'mustache', accent: '#cf573c', skin: '#d8a878', skinHi: '#eec89a', label: 'PROF' },
-  prof2: { kind: 'prof', face: 'beard', accent: '#4f8fba', skin: '#cf9e6e', skinHi: '#e8bd8c', label: 'PROF' },
+  prof2: { kind: 'prof', face: 'newton', accent: '#4f8fba', skin: '#cf9e6e', skinHi: '#e8bd8c', label: 'PROF' },
   pruefung1: { kind: 'klausur', body: '#ebede9', bodyDark: '#c09473', trim: '#a53030', label: 'KLAUSUR' },
   pruefung2: { kind: 'klausur', body: '#ebede9', bodyDark: '#c09473', trim: '#75a743', label: 'KLAUSUR' },
 };
@@ -214,10 +214,20 @@ function _drawProf(ctx, S, def, dir, frame) {
   ctx.fill();
   ctx.beginPath(); ctx.arc(cx, S * 0.83, S * 0.028, 0, Math.PI * 2); ctx.fill();
 
-  // wild hair halo behind the head
-  for (let i = 0; i < 11; i++) {
-    const a = Math.PI + (i / 10) * Math.PI;
-    _puff(ctx, cx + Math.cos(a) * rx * 1.18, cy + bob - S * 0.03 + Math.sin(a) * ry * 1.0, S * 0.1, i % 2 ? HAIR_SH : HAIR);
+  if (def.face === 'mustache') {
+    // Einstein: wild hair halo behind the head
+    for (let i = 0; i < 11; i++) {
+      const a = Math.PI + (i / 10) * Math.PI;
+      _puff(ctx, cx + Math.cos(a) * rx * 1.18, cy + bob - S * 0.03 + Math.sin(a) * ry * 1.0, S * 0.1, i % 2 ? HAIR_SH : HAIR);
+    }
+  } else {
+    // Newton: long curled wig, stacked side curls hanging past the ears
+    for (const s of [-1, 1]) {
+      for (let i = 0; i < 4; i++) {
+        _puff(ctx, cx + s * rx * 1.08, cy + bob - ry * 0.5 + i * S * 0.115, S * 0.088, i % 2 ? HAIR_SH : HAIR);
+      }
+      _puff(ctx, cx + s * rx * 0.78, cy + bob - ry * 0.85, S * 0.1, HAIR);
+    }
   }
 
   // ears
@@ -236,14 +246,31 @@ function _drawProf(ctx, S, def, dir, frame) {
   ctx.fillStyle = 'rgba(207,87,60,0.18)';
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + s * rx * 0.55, cy + bob + ry * 0.28, S * 0.06, S * 0.04, 0, 0, Math.PI * 2); ctx.fill(); }
 
-  // front hair tufts
-  for (const s of [-1, 1]) {
-    _puff(ctx, cx + s * rx * 0.72, cy + bob - ry * 0.72, S * 0.11, HAIR);
-    _puff(ctx, cx + s * rx * 0.98, cy + bob - ry * 0.35, S * 0.1, HAIR_SH);
+  if (def.face === 'mustache') {
+    // Einstein: unruly front tufts
+    for (const s of [-1, 1]) {
+      _puff(ctx, cx + s * rx * 0.72, cy + bob - ry * 0.72, S * 0.11, HAIR);
+      _puff(ctx, cx + s * rx * 0.98, cy + bob - ry * 0.35, S * 0.1, HAIR_SH);
+    }
+    _puff(ctx, cx, cy + bob - ry * 0.95, S * 0.12, HAIR);
+    _puff(ctx, cx - S * 0.1, cy + bob - ry * 0.9, S * 0.08, HAIR_SH);
+    _puff(ctx, cx + S * 0.1, cy + bob - ry * 0.9, S * 0.08, HAIR_SH);
+  } else {
+    // Newton: neat wig rolls across the crown, and the famous apple on top
+    _puff(ctx, cx - rx * 0.55, cy + bob - ry * 0.82, S * 0.1, HAIR);
+    _puff(ctx, cx, cy + bob - ry * 0.95, S * 0.105, HAIR_SH);
+    _puff(ctx, cx + rx * 0.55, cy + bob - ry * 0.82, S * 0.1, HAIR);
+    const ax = cx + rx * 0.12, ay = cy + bob - ry * 1.28;
+    ctx.fillStyle = '#cf573c';
+    ctx.beginPath(); ctx.arc(ax, ay, S * 0.075, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#4d2b32';
+    ctx.lineWidth = Math.max(1, S * 0.02);
+    ctx.beginPath(); ctx.moveTo(ax, ay - S * 0.07); ctx.lineTo(ax + S * 0.02, ay - S * 0.12); ctx.stroke();
+    ctx.fillStyle = '#75a743';
+    ctx.beginPath();
+    ctx.ellipse(ax + S * 0.05, ay - S * 0.1, S * 0.035, S * 0.02, -0.5, 0, Math.PI * 2);
+    ctx.fill();
   }
-  _puff(ctx, cx, cy + bob - ry * 0.95, S * 0.12, HAIR);
-  _puff(ctx, cx - S * 0.1, cy + bob - ry * 0.9, S * 0.08, HAIR_SH);
-  _puff(ctx, cx + S * 0.1, cy + bob - ry * 0.9, S * 0.08, HAIR_SH);
 
   // eyes + round glasses (bigger lenses, pupils track movement)
   const look = { right: [0.09, 0], left: [-0.09, 0], up: [0, -0.07], down: [0, 0.07] }[dir] || [0, 0];
@@ -267,18 +294,18 @@ function _drawProf(ctx, S, def, dir, frame) {
   ctx.fillStyle = HAIR;
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(cx + s * S * 0.125, cy + bob - S * 0.15, S * 0.095, S * 0.042, s * -0.15, 0, Math.PI * 2); ctx.fill(); }
 
-  // full white moustache (both)
-  ctx.fillStyle = HAIR;
-  ctx.beginPath(); ctx.ellipse(cx, cy + bob + S * 0.15, S * 0.15, S * 0.06, 0, 0, Math.PI * 2); ctx.fill();
-
-  // beard for the second prof
-  if (def.face === 'beard') {
+  if (def.face === 'mustache') {
+    // Einstein's moustache
+    ctx.fillStyle = HAIR;
+    ctx.beginPath(); ctx.ellipse(cx, cy + bob + S * 0.15, S * 0.15, S * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+  } else {
+    // Newton keeps a stern, clean-shaven mouth
+    ctx.strokeStyle = '#8a5c38';
+    ctx.lineWidth = Math.max(1, S * 0.022);
     ctx.beginPath();
-    ctx.moveTo(cx - rx * 0.72, cy + bob + S * 0.06);
-    ctx.quadraticCurveTo(cx - rx * 0.55, cy + bob + ry * 1.15, cx, cy + bob + ry * 1.2);
-    ctx.quadraticCurveTo(cx + rx * 0.55, cy + bob + ry * 1.15, cx + rx * 0.72, cy + bob + S * 0.06);
-    ctx.quadraticCurveTo(cx, cy + bob + S * 0.3, cx - rx * 0.72, cy + bob + S * 0.06);
-    ctx.closePath(); ctx.fill();
+    ctx.moveTo(cx - S * 0.05, cy + bob + S * 0.17);
+    ctx.lineTo(cx + S * 0.05, cy + bob + S * 0.17);
+    ctx.stroke();
   }
 }
 
