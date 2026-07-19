@@ -43,8 +43,8 @@ const WAVES = [
   { dur: 4, mode: 'scatter' }, { dur: Infinity, mode: 'chase' },
 ];
 const SCATTER_TARGETS = {
-  prof1: { col: 25, row: 1 }, prof2: { col: 2, row: 1 },
-  pruefung1: { col: 25, row: 29 }, pruefung2: { col: 2, row: 29 },
+  prof1: { col: 25, row: 1, fixed: true }, prof2: { col: 2, row: 1, fixed: true },
+  pruefung1: { col: 25, row: 29, fixed: true }, pruefung2: { col: 2, row: 29, fixed: true },
 };
 const ELROY_PELLETS = 50;          // prof1 stops scattering below this
 const ELROY_PELLETS_2 = 20;        // ...and gets a second speed bump here
@@ -279,8 +279,10 @@ function getTarget(e) {
     }
     case 'pruefung1': return pt;
     case 'pruefung2': {
+      // shy retreat flees to its maze corner, NOT the home tile: the house
+      // is one-way, so a home target left it orbiting in front of the door
       const d2 = dist2(e.x, e.y, pt.col, pt.row);
-      return d2 > 64 ? pt : e.homeTile;
+      return d2 > 64 ? pt : SCATTER_TARGETS.pruefung2;
     }
     default: return pt;
   }
@@ -296,7 +298,8 @@ const HOUSE_DOOR = { col: 13, row: 12 };   // corridor tile directly above the g
 
 // True shortest-path first step (BFS). Greedy tile-distance strands eaten
 // enemies below the house, where every step toward the door looks "farther".
-function bfsDir(fromCol, fromRow, target) {
+function bfsDir(fromCol, fromRow, target, pass) {
+  pass = pass || isOpen;
   if (fromCol === target.col && fromRow === target.row) return null;
   const seen = new Uint8Array(MAP_COLS * MAP_ROWS);
   const q = [[fromCol, fromRow, null]];
@@ -306,7 +309,7 @@ function bfsDir(fromCol, fromRow, target) {
     for (const d of ['up', 'down', 'left', 'right']) {
       const [dx, dy] = DIRS[d];
       const nc = wrapCol(c + dx), nr = r + dy;
-      if (nr < 0 || nr >= MAP_ROWS || !isOpen(nc, nr)) continue;
+      if (nr < 0 || nr >= MAP_ROWS || !pass(nc, nr)) continue;
       const idx = nr * MAP_COLS + nc;
       if (seen[idx]) continue;
       seen[idx] = 1;
@@ -363,7 +366,15 @@ function chooseEnemyDir(e, col, row) {
     return Math.random() < 0.5 ? greedy(col, row, allowed, getTarget(e))
       : allowed[Math.floor(Math.random() * allowed.length)];
   }
-  return greedy(col, row, allowed, getTarget(e));
+  const target = getTarget(e);
+  // fixed-tile targets (scatter corners, shy retreat) take true shortest-path
+  // steps: stepwise greedy can orbit small tile rings forever, most visibly
+  // the loop right in front of the house door
+  if (target.fixed) {
+    const d = bfsDir(col, row, target, (c2, r2) => isOpen(c2, r2) && !needsExit(c2, r2));
+    if (d) return d;
+  }
+  return greedy(col, row, allowed, target);
 }
 
 function enemyWant(e, col, row) {

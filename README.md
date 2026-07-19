@@ -4,18 +4,19 @@
 
 CP-Pacman is a browser-based Pacman clone built for a university trade-fair
 booth (Messe). The player is a student navigating a campus-building maze,
-collecting CP (credit point) pellets while avoiding Profs and Prüfungen (exams)
-— four enemies with distinct chase behaviors. It runs locally on a booth
-laptop via a small Node.js server and is meant to be launched with a single
-double-click. Scores persist to a leaderboard on disk for the entire event,
-surviving browser restarts and reboots.
+collecting CP (credit point) pellets while avoiding Profs and Prüfungen
+(exams), four enemies with distinct chase behaviors. It runs locally on a
+booth laptop via a small Node.js server and is meant to be launched with a
+single double-click. The leaderboard is session-only: it lives in the
+server's memory and starts empty every time the server is launched.
 
 ## Requirements
 
 - Node.js 18 or newer.
 - Google Chrome recommended, for kiosk (fullscreen) mode.
 - No internet connection required after the first `npm install`. All game
-  assets are local; the leaderboard is a JSON file on disk, not a database.
+  assets are local; the leaderboard is held in server memory, no database
+  and no files on disk.
 
 ## Setup (first time only)
 
@@ -42,15 +43,12 @@ in your system's default browser instead.
 
 To exit kiosk mode: **Alt+F4** (Windows) or **Cmd+Q** (Mac).
 
-## Leaderboard data location
+## Leaderboard
 
-Scores are stored at `data/leaderboard.json`. This file is safe to back up
-between events. To reset the leaderboard, either delete the file (the server
-recreates it automatically on next startup) or replace its contents with:
-
-```json
-{ "entries": [] }
-```
+The leaderboard is temporary by design. Scores live in the server's memory
+for the current session only: restarting the server (or the laptop, or
+re-running the installer script) clears the board back to empty. Nothing is
+written to disk, so there is nothing to reset between events.
 
 ## Controls
 
